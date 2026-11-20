@@ -962,7 +962,7 @@ Do not create a Sources section; the backend will append the verified sources se
     try {
     console.log('SheiLa Gemini: request started')
       response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-4-hydrogen',
         contents: researchPrompt,
         config: {
           systemInstruction: SYSTEM_PROMPT,
@@ -973,12 +973,12 @@ Do not create a Sources section; the backend will append the verified sources se
         },
       })
      console.log('SheiLa Gemini: response received')
-      usedModel = 'gemini-3.8-flash'
+      usedModel = 'gemini-4-hydrogen'
       lastError = null
     } catch (error) {
       lastError = error
 
-      console.error('SheiLa Gemini 3.8 failed:', error)
+      console.error('SheiLa Gemini 4 Hydrogen failed:', error)
       console.log('SheiLa: trying Groq fallback')
       
       try {
