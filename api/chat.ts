@@ -1094,17 +1094,15 @@ GROQ OUTPUT RULES:
 - Reply in the user's language.
 `
      : `
- ${researchPrompt.slice(0, 2000)}
+${researchPrompt.slice(0, 2000)}
 
 GROQ OUTPUT RULES:
-- Answer directly in 2–4 concise sentences.
-- Use [Source N] citations for factual claims supported by supplied sources.
-- Do not use research-report headings or a Next Step question.
-- Reply in the user's language.
+- Follow the complete research brief and formatting requirements.
+- Provide exactly 3 Key Findings, each with exactly 2 complete sentences.
+- Cite factual claims immediately before sentence-ending punctuation using [Source N].
+- Include an Executive Summary, Key Findings, Analysis, Bottom Line, and one concise Next Step question.
+- Do not invent facts or citations; reply in the user's language.
 `
-   : `
- ${researchPrompt.slice(0, 2000)}
-
 
  console.log(
     `SheiLa Groq prompt chars: ${groqPrompt.length}`,
@@ -1115,7 +1113,11 @@ GROQ OUTPUT RULES:
   messages: [
     {
       role: 'user',
-      content: `${SYSTEM_PROMPT}
+      content: `${isSimple
+        ? "You are SheiLa AI. Answer straightforward questions clearly and concisely in the user's language. Use supplied sources and citations when relevant. Do not force a research-report structure."
+        : isMedium
+          ? "You are SheiLa AI. Give moderately detailed, practical explanations in the user's language, with examples or steps when useful. Cite source-based factual claims. Do not force a full research report."
+          : SYSTEM_PROMPT}
 
 ${groqPrompt}`,
     },
