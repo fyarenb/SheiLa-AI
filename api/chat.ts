@@ -864,6 +864,14 @@ function isCasualMessage(message: string): boolean {
   return isShort && matchesGreeting
 }
 
+function isSimpleQuestion(message: string): boolean {
+  const text = message.trim().toLowerCase()
+  const wordCount = text.split(/\s+/).filter(Boolean).length
+  const researchIntent =
+    /\b(compare|comparison|analy[sz]e|analysis|research|investigate|deep dive|in-depth|comprehensive|detailed report|strategy|market|industry|trends|latest|current|recent|today|this week|opportunities|internships|jobs|fellowships|benchmark|evaluate|pros and cons|karşılaştır|karşılaştırma|analiz|araştır|detaylı|kapsamlı|rapor|strateji|pazar|sektör|trend|güncel|son gelişmeler|fırsatlar|iş ilanları|staj|burs|değerlendir|artıları|eksileri)\b/i
+  return wordCount <= 18 && !researchIntent.test(text)
+}
+
 function isTurkishMessage(message: string): boolean {
   const turkishChars = /[çğıöşüÇĞİÖŞÜ]/
   const turkishWords = /\b(bir|ve|için|nedir|nasıl|mı|mi|mu|mü|bu|şu|ile|merhaba|selam|napıyosun|napıyon)\b/i
@@ -892,6 +900,7 @@ export default async function handler(
     }
 
           const isCasual = isCasualMessage(message)
+      const isSimple = !isCasual && isSimpleQuestion(message)
 
       let searchContext = ''
       let sources: ReturnType<typeof getSources> = []
@@ -921,12 +930,28 @@ ${message}
 
 TASK:
 
-Respond naturally and briefly as SheiLa AI, a friendly research assistant. This is casual small talk, not a research request.
-Do not force the research brief structure (no Executive Summary, Key Findings, Analysis, Bottom Line, Next Step).
-Do not use citations like [Source N]. Do not mention or invent any companies, statistics, or sources.
-Reply in the same language the user used. Keep it warm and conversational, a few sentences at most.
+Respond naturally and briefly as SheiLa AI, a friendly research assistant. This is casual small talk, not a research.
+Do not force research headings or citations. Reply in the same language, warmly and briefly.
 `
-        : `
+        : isSimple
+          ? `
+USER QUESTION:
+
+${message}
+
+AVAILABLE WEB SOURCES:
+
+${searchContext}
+
+TASK:
+
+Answer this straightforward question directly in the user's language.
+Keep the answer concise, normally 2–4 sentences, and explain the key point clearly.
+Use only supplied sources for current or source-dependent factual claims. Add the matching [Source N] citation to each such claim.
+Do not force an executive summary, numbered findings, analysis, bottom line, or Next Step structure.
+Do not omit important qualifications for brevity. If the sources do not establish an answer, say so.
+`
+          : `
 USER REQUEST:
 
 ${message}
@@ -938,14 +963,9 @@ ${searchContext}
 TASK:
 
 Produce a polished professional research brief using only the supplied web research results.
-
 Follow all research quality, evidence, citation, structure, writing, punctuation, and formatting rules defined in the system instructions.
-
-Use the exact citation format [Source N] for factual claims.
-Every factual or source-derived statement in the Executive Summary must include at least one citation.
-Compare sources when useful, explain conflicts, and be transparent when evidence is insufficient.
-Do not invent facts, citations, or unsupported conclusions.
-Do not create a Sources section; the backend will append the verified sources separately.
+Use the exact citation format [Source N] for factual claims. Compare sources when useful, explain conflicts, and be transparent when evidence is insufficient.
+Do not invent facts, citations, or unsupported conclusions. Do not create a Sources section; the backend will append the verified sources separately.
 `
 
 
@@ -968,8 +988,10 @@ Do not create a Sources section; the backend will append the verified sources se
         model: 'gemini-4-hydrogen',
         contents: researchPrompt,
         config: {
-          systemInstruction: SYSTEM_PROMPT,
-          maxOutputTokens: 2200,
+          systemInstruction: isSimple
+            ? "You are SheiLa AI. Answer straightforward questions clearly and concisely in the user's language. Use supplied web sources for factual claims and cite them as [Source N]. Do not force a research-report structure. Never sacrifice factual accuracy for brevity."
+            : SYSTEM_PROMPT,
+          maxOutputTokens: isSimple ? 900 : 2200,
           thinkingConfig: {
             thinkingLevel: ThinkingLevel.LOW,
           },
@@ -1015,7 +1037,17 @@ Do not create a Sources section; the backend will append the verified sources se
       
       try {
   
- const groqPrompt = `
+ const groqPrompt = isSimple
+   ? `
+${researchPrompt}
+
+GROQ OUTPUT RULES:
+- Answer directly in 2–4 concise sentences.
+- Use [Source N] citations for factual claims supported by supplied sources.
+- Do not use research-report headings or a Next Step question.
+- Reply in the user's language.
+`
+   : `
  ${researchPrompt.slice(0, 2000)}
 
 GROQ OUTPUT RULES:
@@ -1066,7 +1098,7 @@ EMOJI RULES:
 - Next Step heading: NO emoji.
 - Do not use additional emojis in the section body.
 - Do not repeat the same emoji across section headings when possible.     
-`  
+` `
  console.log(
     `SheiLa Groq prompt chars: ${groqPrompt.length}`,
   )  
@@ -1081,7 +1113,7 @@ EMOJI RULES:
 ${groqPrompt}`,
     },
   ],
-  max_completion_tokens: 2000,
+  max_completion_tokens: isSimple ? 900 : 2000,
   reasoning_effort: 'low',
   stream: true,
 })
