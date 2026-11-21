@@ -864,12 +864,23 @@ function isCasualMessage(message: string): boolean {
   return isShort && matchesGreeting
 }
 
-function isSimpleQuestion(message: string): boolean {
+function classifyQuestion(message: string): 'simple' | 'medium' | 'deep' {
   const text = message.trim().toLowerCase()
   const wordCount = text.split(/\s+/).filter(Boolean).length
-  const researchIntent =
-    /\b(compare|comparison|analy[sz]e|analysis|research|investigate|deep dive|in-depth|comprehensive|detailed report|strategy|market|industry|trends|latest|current|recent|today|this week|opportunities|internships|jobs|fellowships|benchmark|evaluate|pros and cons|karşılaştır|karşılaştırma|analiz|araştır|detaylı|kapsamlı|rapor|strateji|pazar|sektör|trend|güncel|son gelişmeler|fırsatlar|iş ilanları|staj|burs|değerlendir|artıları|eksileri)\b/i
-  return wordCount <= 18 && !researchIntent.test(text)
+
+  const deepIntent =
+    /\b(research|investigate|deep dive|in-depth|comprehensive|detailed report|market analysis|industry analysis|competitive landscape|strategy|latest|current|recent|today|this week|trends|benchmark|opportunities|internships|fellowships|karşılaştırmalı analiz|derinlemesine|kapsamlı araştır|detaylı rapor|pazar analizi|sektör analizi|rekabet analizi|strateji|son gelişmeler|güncel gelişmeler|trendler|iş ilanları|staj fırsatları|burs fırsatları)\b/i
+
+  const mediumIntent =
+    /\b(explain|elaborate|how does|how do|how can|how to|difference between|compare|comparison|examples|example|steps|guide|recommend|recommendation|advice|pros and cons|evaluate|assess|skills|roadmap|career|explain|açıkla|açıklay|nasıl|farkı|farkları|arasındaki fark|karşılaştır|örnek|adım|rehber|öner|tavsiye|değerlendir|beceriler|yetkinlikler|kariyer|yol haritası)\b/i
+
+  const simpleIntent =
+    /\b(what is|what are|what does .* mean|define|meaning of|who is|when was|where is|how many|nedir|ne demek|anlamı ne|kimdir|ne zaman|nerede|kaç tane|kaç yaşında)\b/i
+
+  if (deepIntent.test(text) || wordCount > 35) return 'deep'
+  if (mediumIntent.test(text) || wordCount > 12) return 'medium'
+  if (simpleIntent.test(text) || wordCount <= 8) return 'simple'
+  return 'medium'
 }
 
 function isTurkishMessage(message: string): boolean {
@@ -900,7 +911,10 @@ export default async function handler(
     }
 
           const isCasual = isCasualMessage(message)
-      const isSimple = !isCasual && isSimpleQuestion(message)
+      const responseLevel = isCasual ? 'casual' : classifyQuestion(message)
+      const isSimple = responseLevel === 'simple'
+      const isMedium = responseLevel === 'medium'
+      console.log(`SheiLa response level: ${responseLevel}`)
 
       let searchContext = ''
       let sources: ReturnType<typeof getSources> = []
@@ -951,7 +965,26 @@ Use only supplied sources for current or source-dependent factual claims. Add th
 Do not force an executive summary, numbered findings, analysis, bottom line, or Next Step structure.
 Do not omit important qualifications for brevity. If the sources do not establish an answer, say so.
 `
-          : `
+          : isMedium
+            ? `
+USER QUESTION:
+
+${message}
+
+AVAILABLE WEB SOURCES:
+
+${searchContext}
+
+TASK:
+
+Give a useful, moderately detailed explanation in the user's language.
+Normally use 2–4 short paragraphs or a concise set of bullets, with examples or practical steps when they help answer the question.
+Explain relevant distinctions and implications instead of giving a superficial one-line answer.
+Use the supplied web sources for current or source-dependent factual claims and attach the matching [Source N] citations to those claims.
+Do not force the full research-brief structure, exactly three findings, or a Next Step question.
+Do not invent facts or citations. If the sources are incomplete or conflicting, explain the limitation.
+`
+            : `
 USER REQUEST:
 
 ${message}
@@ -990,8 +1023,10 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
         config: {
           systemInstruction: isSimple
             ? "You are SheiLa AI. Answer straightforward questions clearly and concisely in the user's language. Use supplied web sources for factual claims and cite them as [Source N]. Do not force a research-report structure. Never sacrifice factual accuracy for brevity."
-            : SYSTEM_PROMPT,
-          maxOutputTokens: isSimple ? 900 : 2200,
+            : isMedium
+              ? "You are SheiLa AI, a knowledgeable research assistant. Give moderately detailed, practical explanations in the user's language. Use supplied sources and cite factual claims as [Source N]. Include useful distinctions, examples, or steps when relevant. Do not force a full research report."
+              : SYSTEM_PROMPT,
+          maxOutputTokens: isSimple ? 900 : isMedium ? 1400 : 2200,
           thinkingConfig: {
             thinkingLevel: ThinkingLevel.LOW,
           },
@@ -1047,58 +1082,30 @@ GROQ OUTPUT RULES:
 - Do not use research-report headings or a Next Step question.
 - Reply in the user's language.
 `
-   : `
+   : isMedium
+     ? `
+${researchPrompt}
+
+GROQ OUTPUT RULES:
+- Give a moderately detailed answer, normally 2–4 short paragraphs or concise bullets.
+- Include examples, distinctions, or practical steps when they improve the answer.
+- Use [Source N] citations for factual claims supported by supplied sources.
+- Do not force research-report headings or a Next Step question.
+- Reply in the user's language.
+`
+     : `
  ${researchPrompt.slice(0, 2000)}
 
 GROQ OUTPUT RULES:
-
-- Output exactly 3 Key Findings.
-- Each Key Finding must contain exactly 2 complete sentences.
-- Every complete sentence must end with exactly one sentence-ending punctuation mark: ., ?, or !.
-- Citations must appear immediately BEFORE the final punctuation.
-- Correct: Sentence [Source 1].
-- Correct: Sentence [Source 1] [Source 2].
-- Never place a citation at the beginning of a sentence.
-- Never place punctuation before a citation.
-- Never use two sentence-ending punctuation marks together.
-
-- Use exactly one emoji in the Executive Summary heading.
-- Use exactly one emoji in the Key Findings heading.
-- Use exactly one emoji in each numbered Key Finding heading.
-- Use exactly one emoji in the Analysis heading.
-- Use exactly one emoji in the Bottom Line heading.
-- DO NOT use an emoji in the Next Step heading.
-- DO NOT use additional emojis in section bodies.
-
-- Next Step must contain exactly one concise question.
-- Next Step must be on one line with its question.
-- Do not put the Next Step question on a separate line.
-
-LINK RULES:
-- For every source-supported company, brand, product, platform, organization, or named entity, create a Markdown link on its first meaningful mention.
-- Never place a Markdown link inside a Markdown heading.
-- In opportunity listings, keep the opportunity heading plain, bold, and unlinked; place the relevant company or organization Markdown link on the immediately following line.
-- The link MUST use the exact URL of the relevant Tavily source.
-- Example: [Google](https://relevant-source-url.com)
-- Never invent a URL.
-- Never create a link unless the URL comes from one of the supplied sources.
-- Keep normal source citations as [Source N].
-- Do not use raw URLs in the visible answer.
-- Never output [image] or favicon URLs.
+- Answer directly in 2–4 concise sentences.
+- Use [Source N] citations for factual claims supported by supplied sources.
+- Do not use research-report headings or a Next Step question.
+- Reply in the user's language.
+`
+   : `
+ ${researchPrompt.slice(0, 2000)}
 
 
-
-EMOJI RULES:
-- Use exactly 1 emoji in each major section heading except in Next Step section.
-- Executive Summary heading: exactly 1 emoji.
-- Key Findings heading: exactly 1 emoji.
-- Each numbered Key Finding heading: exactly 1 emoji.
-- Analysis heading: exactly 1 emoji.
-- Bottom Line heading: exactly 1 emoji.
-- Next Step heading: NO emoji.
-- Do not use additional emojis in the section body.
-- Do not repeat the same emoji across section headings when possible.     
-` `
  console.log(
     `SheiLa Groq prompt chars: ${groqPrompt.length}`,
   )  
@@ -1113,7 +1120,7 @@ EMOJI RULES:
 ${groqPrompt}`,
     },
   ],
-  max_completion_tokens: isSimple ? 900 : 2000,
+  max_completion_tokens: isSimple ? 900 : isMedium ? 1400 : 2000,
   reasoning_effort: 'low',
   stream: true,
 })
