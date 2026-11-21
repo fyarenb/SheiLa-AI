@@ -848,12 +848,61 @@ function getSources(data: TavilyResponse) {
 }
 
 function isGreetingMessage(message: string): boolean {
-  const text = message.trim().toLowerCase()
-  const wordCount = text.split(/\\s+/).filter(Boolean).length
-  const greetingPattern =
-    /^(merhaba|selam|selamlar|hey+|hi|hello|günaydın|gunaydin|iyi akşamlar|iyi geceler|iyi günler)(?:\\b|$)/i
+  const normalized = message
+    .toLocaleLowerCase('tr-TR')
+    .normalize('NFD')
+    .replace(/[\\u0300-\\u036f]/g, '')
+    .replace(/[^a-z\\s]/g, ' ')
+    .trim()
+  const words = normalized.split(/\\s+/).filter(Boolean)
 
-  return wordCount <= 5 && greetingPattern.test(text)
+  if (words.length === 0 || words.length > 3) return false
+
+  const greetings = [
+    'merhaba',
+    'selam',
+    'selamlar',
+    'hey',
+    'hi',
+    'hello',
+    'gunaydin',
+    'iyi',
+    'aksamlar',
+    'geceler',
+    'gunler',
+  ]
+
+  const firstWord = words[0]
+  const isKnownGreeting = greetings.includes(firstWord)
+  const isCommonOneCharacterTypo =
+    firstWord.length >= 5 &&
+    greetings.some((greeting) => {
+      if (Math.abs(greeting.length - firstWord.length) > 1) return false
+      let differences = 0
+      let i = 0
+      let j = 0
+
+      while (i < firstWord.length && j < greeting.length) {
+        if (firstWord[i] === greeting[j]) {
+          i++
+          j++
+        } else {
+          differences++
+          if (differences > 1) return false
+          if (firstWord.length > greeting.length) i++
+          else if (greeting.length > firstWord.length) j++
+          else {
+            i++
+            j++
+          }
+        }
+      }
+
+      return differences + (firstWord.length - i) + (greeting.length - j) <= 1
+    })
+
+  return (isKnownGreeting || isCommonOneCharacterTypo) &&
+    words.slice(1).every((word) => ['ben', 'ya', 'hey'].includes(word))
 }
 
 function isCasualMessage(message: string): boolean {
@@ -921,7 +970,7 @@ export default async function handler(
 
     if (isGreetingMessage(message)) {
       const greetingReply = isTurkishMessage(message)
-        ? 'Merhaba! Ben SheiLa AI. Sana nasıl yardımcı olabilirim?'
+        ? 'Merhaba, ben SheiLa AI. Nasıl yardımcı olabilirim?'
         : 'Hello! I’m SheiLa AI. How can I help you?'
 
       console.log('SheiLa: local greeting response (no AI request)')
