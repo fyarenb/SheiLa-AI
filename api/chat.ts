@@ -959,6 +959,7 @@ Do not create a Sources section; the backend will append the verified sources se
     let usedModel = ''
     let lastError: unknown = null
     let streamedByGemini = false
+    let streamedByGroq = false
     let streamedGeminiText = ''
 
     try {
@@ -1070,7 +1071,7 @@ EMOJI RULES:
     `SheiLa Groq prompt chars: ${groqPrompt.length}`,
   )  
   
-  const groqResponse = await groq.chat.completions.create({
+  const groqStream = await groq.chat.completions.create({
   model: 'openai/gpt-oss-120b',
   messages: [
     {
@@ -1082,9 +1083,18 @@ ${groqPrompt}`,
   ],
   max_completion_tokens: 2000,
   reasoning_effort: 'low',
+  stream: true,
 })
 
-        let groqText = groqResponse.choices[0]?.message?.content ?? ''
+        let groqText = ''
+        for await (const chunk of groqStream) {
+          const chunkText = chunk.choices[0]?.delta?.content ?? ''
+          if (!chunkText) continue
+
+          groqText += chunkText
+          res.write(chunkText)
+          streamedByGroq = true
+        }
 
        if (!groqText) {
          throw new Error('Groq returned an empty response')
@@ -1150,7 +1160,7 @@ if (!groqText.trim()) {
         
          
 
-   if (!streamedByGemini) {
+   if (!streamedByGemini && !streamedByGroq) {
       res.write(answerText)
     }
 
