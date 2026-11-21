@@ -958,10 +958,12 @@ Do not create a Sources section; the backend will append the verified sources se
     let response
     let usedModel = ''
     let lastError: unknown = null
+    let streamedByGemini = false
+    let streamedGeminiText = ''
 
     try {
-    console.log('SheiLa Gemini: request started')
-      response = await ai.models.generateContent({
+      console.log('SheiLa Gemini: streaming request started')
+      const geminiStream = await ai.models.generateContentStream({
         model: 'gemini-4-hydrogen',
         contents: researchPrompt,
         config: {
@@ -972,13 +974,42 @@ Do not create a Sources section; the backend will append the verified sources se
           },
         },
       })
-     console.log('SheiLa Gemini: response received')
+
+      for await (const chunk of geminiStream) {
+        const chunkText = chunk.text ?? ''
+        if (!chunkText) continue
+
+        streamedGeminiText += chunkText
+        res.write(chunkText)
+        streamedByGemini = true
+      }
+
+      if (!streamedGeminiText.trim()) {
+        throw new Error('Gemini returned an empty streamed response')
+      }
+
+      response = { text: streamedGeminiText }
+      console.log('SheiLa Gemini: streaming response completed')
       usedModel = 'gemini-4-hydrogen'
       lastError = null
     } catch (error) {
       lastError = error
 
-      console.error('SheiLa Gemini 4 Hydrogen failed:', error)
+      console.error('SheiLa Gemini 4 Hydrogen streaming failed:', error)
+
+      if (streamedByGemini) {
+        console.error('SheiLa Gemini stream stopped after partial output; skipping fallback to avoid mixing responses.')
+        if (sources.length > 0) {
+          res.write(
+            `\\n\\n### Sources\\n\\n${sources
+              .map((source) => `${source.id}. [${source.title}](${source.url})`)
+              .join('\\n')}`,
+          )
+        }
+        res.end()
+        return
+      }
+
       console.log('SheiLa: trying Groq fallback')
       
       try {
@@ -1119,7 +1150,9 @@ if (!groqText.trim()) {
         
          
 
-   res.write(answerText)
+   if (!streamedByGemini) {
+      res.write(answerText)
+    }
 
     
 
