@@ -901,8 +901,14 @@ function isGreetingMessage(message: string): boolean {
       return differences + (firstWord.length - i) + (greeting.length - j) <= 1
     })
 
-  return (isKnownGreeting || isCommonOneCharacterTypo) &&
-    words.slice(1).every((word) => ['ben', 'ya', 'hey'].includes(word))
+  const isMultiWordGreeting =
+    (words[0] === 'iyi' &&
+      ['aksamlar', 'geceler', 'gunler'].includes(words[1] ?? '') &&
+      words.length === 2)
+
+  return isMultiWordGreeting ||
+    ((isKnownGreeting || isCommonOneCharacterTypo) &&
+      words.slice(1).every((word) => ['ben', 'ya', 'hey'].includes(word)))
 }
 
 function isCasualMessage(message: string): boolean {
