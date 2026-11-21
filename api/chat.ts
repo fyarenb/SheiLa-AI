@@ -847,6 +847,15 @@ function getSources(data: TavilyResponse) {
     .filter((source) => source.url.length > 0)
 }
 
+function isGreetingMessage(message: string): boolean {
+  const text = message.trim().toLowerCase()
+  const wordCount = text.split(/\\s+/).filter(Boolean).length
+  const greetingPattern =
+    /^(merhaba|selam|selamlar|hey+|hi|hello|günaydın|gunaydin|iyi akşamlar|iyi geceler|iyi günler)(?:\\b|$)/i
+
+  return wordCount <= 5 && greetingPattern.test(text)
+}
+
 function isCasualMessage(message: string): boolean {
   const text = message.trim().toLowerCase()
   const wordCount = text.split(/\s+/).filter(Boolean).length
@@ -908,6 +917,17 @@ export default async function handler(
       return res.status(400).json({
         error: 'Message is required',
       })
+    }
+
+    if (isGreetingMessage(message)) {
+      const greetingReply = isTurkishMessage(message)
+        ? 'Merhaba! Ben SheiLa AI. Sana nasıl yardımcı olabilirim?'
+        : 'Hello! I’m SheiLa AI. How can I help you?'
+
+      console.log('SheiLa: local greeting response (no AI request)')
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+      res.setHeader('Cache-Control', 'no-cache, no-transform')
+      return res.status(200).send(greetingReply)
     }
 
           const isCasual = isCasualMessage(message)
