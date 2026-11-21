@@ -1035,8 +1035,14 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
     let streamedByGroq = false
     let streamedGeminiText = ''
 
+    const geminiAbortController = new AbortController()
+    const geminiTimeout = setTimeout(() => {
+      console.warn('SheiLa Gemini: 45-second timeout reached; aborting and switching to Groq')
+      geminiAbortController.abort()
+    }, 45_000)
+
     try {
-      console.log('SheiLa Gemini: streaming request started')
+      console.log('SheiLa Gemini: streaming request started (45-second limit)')
       const geminiStream = await ai.models.generateContentStream({
         model: 'gemini-4-hydrogen',
         contents: researchPrompt,
@@ -1050,6 +1056,7 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
           thinkingConfig: {
             thinkingLevel: ThinkingLevel.LOW,
           },
+          abortSignal: geminiAbortController.signal,
         },
       })
 
@@ -1062,6 +1069,8 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
         streamedByGemini = true
       }
 
+      clearTimeout(geminiTimeout)
+
       if (!streamedGeminiText.trim()) {
         throw new Error('Gemini returned an empty streamed response')
       }
@@ -1071,21 +1080,16 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
       usedModel = 'gemini-4-hydrogen'
       lastError = null
     } catch (error) {
+      clearTimeout(geminiTimeout)
       lastError = error
 
       console.error('SheiLa Gemini 4 Hydrogen streaming failed:', error)
 
       if (streamedByGemini) {
-        console.error('SheiLa Gemini stream stopped after partial output; skipping fallback to avoid mixing responses.')
-        if (sources.length > 0) {
-          res.write(
-            `\\n\\n### Sources\\n\\n${sources
-              .map((source) => `${source.id}. [${source.title}](${source.url})`)
-              .join('\\n')}`,
-          )
-        }
-        res.end()
-        return
+        console.warn('SheiLa Gemini stream ended after partial output; continuing with a clearly separated Groq fallback.')
+        res.write(
+          '\\n\\n---\\n\\nGemini yanıtı tamamlanamadı. Yanıt Groq ile yeniden oluşturuluyor.\\n\\n',
+        )
       }
 
       console.log('SheiLa: trying Groq fallback')
