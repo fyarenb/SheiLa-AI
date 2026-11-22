@@ -1177,14 +1177,16 @@ GROQ OUTPUT RULES:
   model: 'openai/gpt-oss-120b',
   messages: [
     {
-      role: 'user',
-      content: `${isSimple
-        ? "You are SheiLa AI. Answer straightforward questions clearly and concisely in the user's language. Use supplied sources and citations when relevant. Do not force a research-report structure."
+      role: 'system',
+      content: isSimple
+        ? "You are SheiLa AI. Answer clearly and concisely in the user's language. Use supplied sources and citations when relevant."
         : isMedium
-          ? "You are SheiLa AI. Give moderately detailed, practical explanations in the user's language, with examples or steps when useful. Cite source-based factual claims. Do not force a full research report."
-          : SYSTEM_PROMPT}
-
-${groqPrompt}`,
+          ? "You are SheiLa AI. Give practical, moderately detailed answers in the user's language. Cite source-based factual claims."
+          : "You are SheiLa AI, a professional research analyst. Use only the supplied web sources. Do not invent facts, dates, statistics, URLs, or citations. Evaluate source reliability, synthesize evidence, distinguish facts from interpretation, and state uncertainty. For substantial research, provide an executive summary, exactly three evidence-supported findings with citations, concise analysis, a bottom line, and one relevant next-step question. Reply in the user's language.",
+    },
+    {
+      role: 'user',
+      content: groqPrompt,
     },
   ],
   max_completion_tokens: isSimple ? 900 : isMedium ? 1400 : 2000,
