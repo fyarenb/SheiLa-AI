@@ -1210,23 +1210,30 @@ html, body {
   font-weight: 900;
 }
 
-/* Bulgu başlıkları arası boşluğu daralt (Key Findings->1., 1->2, 2->3) */
+/* Başlıklar ve altlarındaki metinler arasında tutarlı boşluk */
+.sheila-answer-text h2 {
+  margin: 20px 0 8px;
+}
+
 .sheila-answer-text h3 {
-  margin-top: 3px;
+  margin: 14px 0 6px;
 }
 
-/* Analysis -> Bottom Line arasındaki boşluğu daralt */
-.sheila-answer-text h2:nth-of-type(4) {
-  margin-top: 6px;
-}
-
-/* Analysis ve Bottom Line başlığı ile hemen altındaki cümleyi yakınlaştır */
-.sheila-answer-text h2 + p {
-  margin-top: -12px !important;
-}
-
+.sheila-answer-text h2 + p,
 .sheila-answer-text h3 + p {
-  margin-top: -12px !important;
+  margin-top: 0;
+}
+
+/* Numaralı ve madde işaretli listeler normal belge akışında kalsın */
+.sheila-answer-text ol,
+.sheila-answer-text ul {
+  display: block;
+  list-style-position: outside;
+}
+
+.sheila-answer-text ol > li,
+.sheila-answer-text ul > li {
+  display: list-item;
 }
 .sheila-answer-text h1 {
   font-size: 21px;
