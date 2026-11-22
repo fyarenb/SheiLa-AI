@@ -1159,7 +1159,7 @@ GROQ OUTPUT RULES:
 - Reply in the user's language.
 `
      : `
-${researchPrompt.slice(0, 2000)}
+${researchPrompt}
 
 GROQ OUTPUT RULES:
 - Follow the complete research brief and formatting requirements.
