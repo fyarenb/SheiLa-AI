@@ -848,15 +848,14 @@ function getSources(data: TavilyResponse) {
 }
 
 function isGreetingMessage(message: string): boolean {
-  const normalized = message
+  const text = message
+    .trim()
     .toLocaleLowerCase('tr-TR')
     .normalize('NFD')
-    .replace(/[\\u0300-\\u036f]/g, '')
-    .replace(/[^a-z\\s]/g, ' ')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z\s]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
-  const words = normalized.split(/\\s+/).filter(Boolean)
-
-  if (words.length === 0 || words.length > 3) return false
 
   const greetings = [
     'merhaba',
@@ -866,49 +865,30 @@ function isGreetingMessage(message: string): boolean {
     'hi',
     'hello',
     'gunaydin',
-    'iyi',
-    'aksamlar',
-    'geceler',
-    'gunler',
+    'iyi aksamlar',
+    'iyi geceler',
+    'iyi gunler',
+  ]
+  const casualQuestions = [
+    'nasilsin',
+    'naber',
+    'ne haber',
+    'ne var ne yok',
+    'how are you',
+    'whats up',
+    'what is up',
   ]
 
-  const firstWord = words[0]
-  const isKnownGreeting = greetings.includes(firstWord)
-  const isCommonOneCharacterTypo =
-    firstWord.length >= 5 &&
-    greetings.some((greeting) => {
-      if (Math.abs(greeting.length - firstWord.length) > 1) return false
-      let differences = 0
-      let i = 0
-      let j = 0
+  const words = text.split(' ').filter(Boolean)
+  if (words.length > 5) return false
 
-      while (i < firstWord.length && j < greeting.length) {
-        if (firstWord[i] === greeting[j]) {
-          i++
-          j++
-        } else {
-          differences++
-          if (differences > 1) return false
-          if (firstWord.length > greeting.length) i++
-          else if (greeting.length > firstWord.length) j++
-          else {
-            i++
-            j++
-          }
-        }
-      }
+  const isGreeting = greetings.includes(text) ||
+    (['merhaba', 'selam', 'selamlar'].includes(words[0]) &&
+      words.slice(1).every((word) => ['ya', 'ben', 'hey'].includes(word)))
 
-      return differences + (firstWord.length - i) + (greeting.length - j) <= 1
-    })
+  const isCasualQuestion = casualQuestions.includes(text)
 
-  const isMultiWordGreeting =
-    (words[0] === 'iyi' &&
-      ['aksamlar', 'geceler', 'gunler'].includes(words[1] ?? '') &&
-      words.length === 2)
-
-  return isMultiWordGreeting ||
-    ((isKnownGreeting || isCommonOneCharacterTypo) &&
-      words.slice(1).every((word) => ['ben', 'ya', 'hey'].includes(word)))
+  return isGreeting || isCasualQuestion
 }
 
 function isCasualMessage(message: string): boolean {
@@ -933,7 +913,7 @@ function classifyQuestion(message: string): 'simple' | 'medium' | 'deep' {
   const wordCount = text.split(/\s+/).filter(Boolean).length
 
   const deepIntent =
-    /\b(research|investigate|deep dive|in-depth|comprehensive|detailed report|market analysis|industry analysis|competitive landscape|strategy|latest|current|recent|today|this week|trends|benchmark|opportunities|internships|fellowships|karşılaştırmalı analiz|derinlemesine|kapsamlı araştır|detaylı rapor|pazar analizi|sektör analizi|rekabet analizi|strateji|son gelişmeler|güncel gelişmeler|trendler|iş ilanları|staj fırsatları|burs fırsatları)\b/i
+    /\b(research|investigate|deep dive|in-depth|comprehensive|detailed report|market analysis|industry analysis|competitive landscape|strategy|latest|current|recent|today|this week|trends|benchmark|opportunities|internships|fellowships|karşılaştırmalı analiz|derinlemesine|kapsamlı araştır|detaylı rapor|pazar analizi|sektör analizi|rekabet analizi|strateji|son gelişmeler|güncel gelişmeler|trendler|iş ilanları|staj fırsatları|burs fırsatları|araştır|arastir|incele|hakkında araştır|hakkinda arastir)\b/i
 
   const mediumIntent =
     /\b(explain|elaborate|how does|how do|how can|how to|difference between|compare|comparison|examples|example|steps|guide|recommend|recommendation|advice|pros and cons|evaluate|assess|skills|roadmap|career|explain|açıkla|açıklay|nasıl|farkı|farkları|arasındaki fark|karşılaştır|örnek|adım|rehber|öner|tavsiye|değerlendir|beceriler|yetkinlikler|kariyer|yol haritası)\b/i
@@ -975,11 +955,21 @@ export default async function handler(
     }
 
     if (isGreetingMessage(message)) {
+      const normalizedMessage = message
+        .trim()
+        .toLocaleLowerCase('tr-TR')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+      const isHowAreYou = /^(nasilsin|naber|ne haber|ne var ne yok)$/.test(normalizedMessage)
       const greetingReply = isTurkishMessage(message)
-        ? 'Merhaba, ben SheiLa AI. Nasıl yardımcı olabilirim?'
-        : 'Hello! I’m SheiLa AI. How can I help you?'
+        ? isHowAreYou
+          ? 'İyiyim, teşekkür ederim! Sana nasıl yardımcı olabilirim?'
+          : 'Merhaba, ben SheiLa AI. Nasıl yardımcı olabilirim?'
+        : /^(how are you|whats up|what is up)$/.test(normalizedMessage)
+          ? "I'm doing well, thank you! How can I help you?"
+          : 'Hello! I’m SheiLa AI. How can I help you?'
 
-      console.log('SheiLa: local greeting response (no AI request)')
+      console.log('SheiLa: local casual response (no AI or web search)')
       res.setHeader('Content-Type', 'text/plain; charset=utf-8')
       res.setHeader('Cache-Control', 'no-cache, no-transform')
       return res.status(200).send(greetingReply)
@@ -1090,14 +1080,8 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
     let streamedByGroq = false
     let streamedGeminiText = ''
 
-    const geminiAbortController = new AbortController()
-    const geminiTimeout = setTimeout(() => {
-      console.warn('SheiLa Gemini: 45-second timeout reached; aborting and switching to Groq')
-      geminiAbortController.abort()
-    }, 45_000)
-
     try {
-      console.log('SheiLa Gemini: streaming request started (45-second limit)')
+      console.log('SheiLa Gemini: streaming request started')
       const geminiStream = await ai.models.generateContentStream({
         model: 'gemini-4-hydrogen',
         contents: researchPrompt,
@@ -1111,7 +1095,6 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
           thinkingConfig: {
             thinkingLevel: ThinkingLevel.LOW,
           },
-          abortSignal: geminiAbortController.signal,
         },
       })
 
@@ -1124,8 +1107,6 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
         streamedByGemini = true
       }
 
-      clearTimeout(geminiTimeout)
-
       if (!streamedGeminiText.trim()) {
         throw new Error('Gemini returned an empty streamed response')
       }
@@ -1135,16 +1116,21 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
       usedModel = 'gemini-4-hydrogen'
       lastError = null
     } catch (error) {
-      clearTimeout(geminiTimeout)
       lastError = error
 
       console.error('SheiLa Gemini 4 Hydrogen streaming failed:', error)
 
       if (streamedByGemini) {
-        console.warn('SheiLa Gemini stream ended after partial output; continuing with a clearly separated Groq fallback.')
-        res.write(
-          '\\n\\n---\\n\\nGemini yanıtı tamamlanamadı. Yanıt Groq ile yeniden oluşturuluyor.\\n\\n',
-        )
+        console.error('SheiLa Gemini stream stopped after partial output; skipping fallback to avoid mixing responses.')
+        if (sources.length > 0) {
+          res.write(
+            `\\n\\n### Sources\\n\\n${sources
+              .map((source) => `${source.id}. [${source.title}](${source.url})`)
+              .join('\\n')}`,
+          )
+        }
+        res.end()
+        return
       }
 
       console.log('SheiLa: trying Groq fallback')
