@@ -935,7 +935,7 @@ function classifyQuestion(message: string): 'simple' | 'medium' | 'deep' {
 }
 function isTurkishMessage(message: string): boolean {
   const turkishChars = /[çğıöşüÇĞİÖŞÜ]/
-  const turkishWords = /\b(bir|ve|için|nedir|nasıl|mı|mi|mu|mü|bu|şu|ile|merhaba|selam|napıyosun|napıyon)\b/i
+  const turkishWords = /\b(bir|ve|için|nedir|nasıl|mı|mi|mu|mü|bu|şu|ile|merhaba|selam|napıyosun|napıyon|araştır|araştırın|araştırır|grubunu|hakkında|karşılaştır|öner|açıkla|bul|incele|değerlendir)\b/i
 
   return turkishChars.test(message) || turkishWords.test(message)
 }
@@ -981,7 +981,11 @@ export default async function handler(
       return res.status(200).send(greetingReply)
     }
 
-          const isCasual = isCasualMessage(message)
+          const languageInstruction = isTurkishMessage(message)
+        ? "MANDATORY LANGUAGE: The user's message is in Turkish. Write the entire answer in fluent, natural Turkish, including every heading, finding title, explanation, list item, and conclusion. Keep proper names and official product names in their original form. Do not answer in English."
+        : "MANDATORY LANGUAGE: Write the entire answer in the same language as the user's message. Do not switch languages unless explicitly requested."
+
+      const isCasual = isCasualMessage(message)
       const responseLevel = isCasual ? 'casual' : classifyQuestion(message)
       const isSimple = responseLevel === 'simple'
       const isMedium = responseLevel === 'medium'
@@ -1093,11 +1097,11 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
           model: 'gemini-4-hydrogen',
           contents: researchPrompt,
           config: {
-            systemInstruction: isSimple
+            systemInstruction: `${languageInstruction}\n\n${isSimple
               ? "You are SheiLa AI. Answer straightforward questions clearly and concisely in the user's language. Use supplied web sources for factual claims and cite them as [Source N]. Do not force a research-report structure. Never sacrifice factual accuracy for brevity."
               : isMedium
                 ? "You are SheiLa AI, a knowledgeable research assistant. Give moderately detailed, practical explanations in the user's language. Use supplied sources and cite factual claims as [Source N]. Include useful distinctions, examples, or steps when relevant. Do not force a full research report."
-                : SYSTEM_PROMPT,
+                : SYSTEM_PROMPT}`,
             maxOutputTokens: isSimple ? 900 : isMedium ? 1400 : 2200,
             thinkingConfig: {
               thinkingLevel: ThinkingLevel.LOW,
@@ -1195,11 +1199,11 @@ GROQ OUTPUT RULES:
   messages: [
     {
       role: 'system',
-      content: isSimple
+      content: `${languageInstruction}\n\n${isSimple
         ? "You are SheiLa AI. Answer clearly and concisely in the user's language. Use supplied sources and citations when relevant."
         : isMedium
           ? "You are SheiLa AI. Give practical, moderately detailed answers in the user's language. Cite source-based factual claims."
-          : "You are SheiLa AI, a professional research analyst. Use only the supplied web sources. Do not invent facts, dates, statistics, URLs, or citations. Evaluate source reliability, synthesize evidence, distinguish facts from interpretation, and state uncertainty. For substantial research, provide an executive summary, exactly three evidence-supported findings with citations, concise analysis, a bottom line, and one relevant next-step question. Reply in the user's language.",
+          : "You are SheiLa AI, a professional research analyst. Use only the supplied web sources. Do not invent facts, dates, statistics, URLs, or citations. Evaluate source reliability, synthesize evidence, distinguish facts from interpretation, and state uncertainty. For substantial research, provide an executive summary, exactly three evidence-supported findings with citations, concise analysis, a bottom line, and one relevant next-step question. Reply in the user's language."}`,
     },
     {
       role: 'user',
