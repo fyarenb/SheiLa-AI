@@ -252,13 +252,9 @@ function renderSheilaContent(
   components={{
     img: () => null,
 
-    p: ({ children }) => (
-      <p style={{ margin: 0 }}>{children}</p>
-    ),
+    p: ({ children }) => <p>{children}</p>,
 
-    li: ({ children }) => (
-      <li style={{ marginTop: 0 }}>{children}</li>
-    ),
+    li: ({ children }) => <li>{children}</li>,
     
     a: ({ href, children }) => {
   const text = Array.isArray(children)
