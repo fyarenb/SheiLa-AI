@@ -909,24 +909,30 @@ function isCasualMessage(message: string): boolean {
 }
 
 function classifyQuestion(message: string): 'simple' | 'medium' | 'deep' {
-  const text = message.trim().toLowerCase()
+  const text = message
+    .trim()
+    .toLocaleLowerCase('tr-TR')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i')
   const wordCount = text.split(/\s+/).filter(Boolean).length
 
+  // Normalize Turkish characters before matching: JavaScript \\b does not
+  // reliably recognize Turkish letters as word characters.
   const deepIntent =
-    /\b(research|investigate|deep dive|in-depth|comprehensive|detailed report|market analysis|industry analysis|competitive landscape|strategy|latest|current|recent|today|this week|trends|benchmark|opportunities|internships|fellowships|karşılaştırmalı analiz|derinlemesine|kapsamlı araştır|detaylı rapor|pazar analizi|sektör analizi|rekabet analizi|strateji|son gelişmeler|güncel gelişmeler|trendler|iş ilanları|staj fırsatları|burs fırsatları|araştır|arastir|incele|hakkında araştır|hakkinda arastir)\b/i
+    /\b(research|investigate|look into|deep dive|in depth|comprehensive|detailed report|market analysis|industry analysis|competitive landscape|strategy|latest|current|recent|today|this week|trends|benchmark|opportunities|internships|fellowships|karsilastirmali analiz|derinlemesine|kapsamli arastir|detayli rapor|pazar analizi|sektor analizi|rekabet analizi|strateji|son gelismeler|guncel gelismeler|trendler|is ilanlari|staj firsatlari|burs firsatlari|arastir|incele|hakkinda arastir|analiz et|arastirma yap)\b/i
 
   const mediumIntent =
-    /\b(explain|elaborate|how does|how do|how can|how to|difference between|compare|comparison|examples|example|steps|guide|recommend|recommendation|advice|pros and cons|evaluate|assess|skills|roadmap|career|explain|açıkla|açıklay|nasıl|farkı|farkları|arasındaki fark|karşılaştır|örnek|adım|rehber|öner|tavsiye|değerlendir|beceriler|yetkinlikler|kariyer|yol haritası)\b/i
+    /\b(explain|elaborate|how does|how do|how can|how to|difference between|compare|comparison|examples|example|steps|guide|recommend|recommendation|advice|pros and cons|evaluate|assess|skills|roadmap|career|acikla|aciklay|nasil|farki|farklari|arasindaki fark|karsilastir|ornek|adim|rehber|oner|tavsiye|degerlendir|beceriler|yetkinlikler|kariyer|yol haritasi)\b/i
 
   const simpleIntent =
-    /\b(what is|what are|what does .* mean|define|meaning of|who is|when was|where is|how many|nedir|ne demek|anlamı ne|kimdir|ne zaman|nerede|kaç tane|kaç yaşında)\b/i
+    /\b(what is|what are|what does .* mean|define|meaning of|who is|when was|where is|how many|nedir|ne demek|anlami ne|kimdir|ne zaman|nerede|kac tane|kac yasinda)\b/i
 
   if (deepIntent.test(text) || wordCount > 35) return 'deep'
   if (mediumIntent.test(text) || wordCount > 12) return 'medium'
   if (simpleIntent.test(text) || wordCount <= 8) return 'simple'
   return 'medium'
 }
-
 function isTurkishMessage(message: string): boolean {
   const turkishChars = /[çğıöşüÇĞİÖŞÜ]/
   const turkishWords = /\b(bir|ve|için|nedir|nasıl|mı|mi|mu|mü|bu|şu|ile|merhaba|selam|napıyosun|napıyon)\b/i
@@ -1082,40 +1088,51 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
 
     try {
       console.log('SheiLa Gemini: streaming request started')
-      const geminiStream = await ai.models.generateContentStream({
-        model: 'gemini-4-hydrogen',
-        contents: researchPrompt,
-        config: {
-          systemInstruction: isSimple
-            ? "You are SheiLa AI. Answer straightforward questions clearly and concisely in the user's language. Use supplied web sources for factual claims and cite them as [Source N]. Do not force a research-report structure. Never sacrifice factual accuracy for brevity."
-            : isMedium
-              ? "You are SheiLa AI, a knowledgeable research assistant. Give moderately detailed, practical explanations in the user's language. Use supplied sources and cite factual claims as [Source N]. Include useful distinctions, examples, or steps when relevant. Do not force a full research report."
-              : SYSTEM_PROMPT,
-          maxOutputTokens: isSimple ? 900 : isMedium ? 1400 : 2200,
-          thinkingConfig: {
-            thinkingLevel: ThinkingLevel.LOW,
+      const geminiTask = (async () => {
+        const geminiStream = await ai.models.generateContentStream({
+          model: 'gemini-4-hydrogen',
+          contents: researchPrompt,
+          config: {
+            systemInstruction: isSimple
+              ? "You are SheiLa AI. Answer straightforward questions clearly and concisely in the user's language. Use supplied web sources for factual claims and cite them as [Source N]. Do not force a research-report structure. Never sacrifice factual accuracy for brevity."
+              : isMedium
+                ? "You are SheiLa AI, a knowledgeable research assistant. Give moderately detailed, practical explanations in the user's language. Use supplied sources and cite factual claims as [Source N]. Include useful distinctions, examples, or steps when relevant. Do not force a full research report."
+                : SYSTEM_PROMPT,
+            maxOutputTokens: isSimple ? 900 : isMedium ? 1400 : 2200,
+            thinkingConfig: {
+              thinkingLevel: ThinkingLevel.LOW,
+            },
           },
-        },
+        })
+
+        let text = ''
+        for await (const chunk of geminiStream) {
+          text += chunk.text ?? ''
+        }
+        if (!text.trim()) throw new Error('Gemini returned an empty streamed response')
+        return text
+      })()
+
+      let timeoutId: ReturnType<typeof setTimeout> | undefined
+      const timeout = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error('Gemini exceeded the 45-second response limit')),
+          45_000,
+        )
       })
 
-      for await (const chunk of geminiStream) {
-        const chunkText = chunk.text ?? ''
-        if (!chunkText) continue
-
-        streamedGeminiText += chunkText
-        res.write(chunkText)
-        streamedByGemini = true
+      try {
+        streamedGeminiText = await Promise.race([geminiTask, timeout])
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId)
       }
 
-      if (!streamedGeminiText.trim()) {
-        throw new Error('Gemini returned an empty streamed response')
-      }
-
+      res.write(streamedGeminiText)
+      streamedByGemini = true
       response = { text: streamedGeminiText }
-      console.log('SheiLa Gemini: streaming response completed')
+      console.log(`SheiLa Gemini: response completed within 45s (${Date.now() - geminiStart}ms)`)
       usedModel = 'gemini-4-hydrogen'
-      lastError = null
-    } catch (error) {
+      lastError = null    } catch (error) {
       lastError = error
 
       console.error('SheiLa Gemini 4 Hydrogen streaming failed:', error)
