@@ -1679,3 +1679,10 @@ html, body {
 .sheila-answer-text ol > li:last-child {
   margin-bottom: 0 !important;
 }
+
+
+/* Increase line height inside paragraphs and list text, without changing section or item gaps. */
+.sheila-answer-text p,
+.sheila-answer-text li {
+  line-height: 1.7 !important;
+}
