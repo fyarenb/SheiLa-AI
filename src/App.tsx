@@ -223,13 +223,13 @@ function renderSheilaContent(
     const punctuationFixedAnswer = citationAnswer
   
   const nextStepMatch = punctuationFixedAnswer.match(
-  /(?:^|\n)\s*(?:\*{0,2}\s*)?(?:#{1,3}\s*)?Next Step\s*(?:→|:)?\s*\n?([\s\S]*?)(?=\n\s*(?:#{1,3}\s+|\*{0,2}\s*Next Step\b)|\s*$)/i,
+  /(?:^|\n)\s*(?:\*{0,2}\s*)?(?:#{1,3}\s*)?(?:Next Step|Sonraki Adım)\s*(?:→|:)?\s*\n?([\s\S]*?)(?=\n\s*(?:#{1,3}\s+|\*{0,2}\s*(?:Next Step|Sonraki Adım)\b)|\s*$)/i,
 )
 
   const nextStepQuestion = nextStepMatch
   ? nextStepMatch[1]
       .replace(/\*\*/g, '')
-      .replace(/^Next Step\s*[→:]\s*/i, '')
+      .replace(/^(?:Next Step|Sonraki Adım)\s*[→:]\s*/i, '')
       .replace(/^[^\wÇĞİÖŞÜçğıöşü]+/u, '')
       .replace(/\s+/g, ' ')
       .trim()

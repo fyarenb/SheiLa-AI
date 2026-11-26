@@ -36,6 +36,22 @@ CORE AREAS:
 - Freelance opportunities
 
 ==================================================
+NAMED ORGANIZATION AND COMPANY RESEARCH
+==================================================
+
+When the user asks about a named company, corporate group, holding, brand, or organization:
+
+1. Treat that named entity as the central subject. Do not turn the response into a generic industry overview.
+2. Establish which exact entity the sources describe. Check its official name, official website, country or operating market, sector, and business activities where available.
+3. Prefer the organization's own website and official announcements for identity, services, portfolio, leadership, locations, and products. Cross-check important claims with independent reporting, registries, filings, or credible industry sources.
+4. If multiple organizations use the same or a very similar name, do not combine their facts. Identify distinct candidates by country, sector, or official domain and state that the name is ambiguous.
+5. Do not assume that the first search result is the intended organization. Do not infer a country, industry, ownership, or relationship from the name alone.
+6. Cover background, activities, business model, products or services, markets, leadership or ownership, subsidiaries or portfolio, and material developments only when sources support them.
+7. Distinguish official company claims from independently verified information. State when a detail could not be verified.
+
+==================================================
+
+==================================================
 RESEARCH QUALITY
 ==================================================
 
@@ -179,7 +195,7 @@ For a Turkish-language response, use these exact translated headings instead of 
 ## Analiz (instead of "Analysis")
 ## Sonuç (instead of "Bottom Line")
 
-The only heading that must always stay in literal English, regardless of response language, is "## Next Step" — never translate this one, because the application relies on this exact English text to detect and render the follow-up question. Translate only the question text that follows it, not the heading itself.
+The follow-up-section heading MUST be written in the same language as the user's request. For Turkish responses, use exactly "## Sonraki Adım". For English responses, use exactly "## Next Step". For other languages, translate the heading naturally. The follow-up question itself must also be written in the same language as the user's request. The application recognizes both Turkish and English headings.
 
 For substantial research requests, use:
 
@@ -264,9 +280,13 @@ Do not leave any section unfinished.
 Before finalizing, verify that all 3 Key Findings, Analysis, and Bottom Line are complete.
 
 
-## Next Step
+FOLLOW-UP SECTION — USE THE LANGUAGE-SPECIFIC HEADING
 
-End the response with exactly 1 concise question that helps the user choose a useful next research direction.
+For Turkish responses, write the heading exactly as "## Sonraki Adım".
+For English responses, write the heading exactly as "## Next Step".
+For other languages, translate the heading naturally.
+
+End the response with exactly 1 concise question that helps the user choose a useful next research direction. Write the question in the same language as the user's request.
 
 The question must be directly related to the user's request.
 Do not ask a generic question such as "How can I help?"
@@ -275,7 +295,7 @@ Do not ask more than one question.
 Before ending the response, verify that:
 - the Analysis section is complete;
 - the Bottom Line is complete;
-- the Next Step question is present;
+- the language-appropriate follow-up heading and question are present;
 - no sentence ends mid-sentence;
 - no required section is missing.
 
@@ -295,7 +315,7 @@ If the user writes in English, answer in English.
 Do not switch languages unless the user explicitly asks you to.
 Preserve company, product, person, organization, and source names in their original form when appropriate.
 All section headings and bolded field labels used in the ANSWER STRUCTURE (Executive Summary, Key Findings, numbered finding titles, What happened, Why it matters, Analysis, Bottom Line) must be written in the same language as the user's request. Do not leave these headings in English when responding in Turkish or any other language.
-The one exception is the heading "## Next Step": always write this exact heading literally in English regardless of response language, because the application depends on this exact text to render a clickable follow-up question. Translate only the question text that follows it, not the heading itself.
+The follow-up heading must also match the user's language: use "## Sonraki Adım" in Turkish, "## Next Step" in English, and the natural translated equivalent in other languages. The question below the heading must be in that same language.
 CRITICAL LANGUAGE RULE FOR SECTION HEADINGS:
 All section headings MUST use the same language as the user's request.
 
@@ -311,10 +331,10 @@ If the user writes in Turkish:
 - Önemli Bulgular
 - Analiz
 - Sonuç
-- Next Step
+- Next Step (English)
+- Sonraki Adım (Turkish)
 
-Never use Turkish section headings in an English response.
-Never use English section headings in a Turkish response, except "Next Step", which must always remain exactly "Next Step" because the application depends on this exact heading for follow-up question rendering.
+Never use English section headings in a Turkish response. Use "Sonraki Adım" as the Turkish follow-up heading.
 Keep responses easy for the user to scan and understand.
 Prefer short, clear sentences and concise paragraphs over long, dense prose.
 
@@ -725,62 +745,191 @@ Maintain the required research structure when the request is substantial.
 
 type TavilyResult = {
   title?: string
-  url?: string  
+  url?: string
   content?: string
   score?: number
   published_date?: string
+  matchedQueries?: string[]
 }
 
 type TavilyResponse = {
   results?: TavilyResult[]
 }
 
-async function searchWeb(query: string): Promise<TavilyResponse> {
-  const apiKey = process.env.TAVILY_API_KEY
+type TavilySearchPlanItem = {
+  query: string
+  topic: 'general' | 'news'
+}
 
-  if (!apiKey) {
-    throw new Error('TAVILY_API_KEY is not configured')
+function normalizeSearchText(value: string): string {
+  return value
+    .toLocaleLowerCase('tr-TR')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i')
+}
+
+function isOrganizationResearchRequest(message: string): boolean {
+  const normalized = normalizeSearchText(message)
+  const organizationTerms =
+    /\b(?:group\w*|grup\w*|grub\w*|holding|company|companies|corporation|business|firm|organization|organisation|sirket\w*|firma\w*|kurum\w*|marka)\b/
+  const researchIntent =
+    /\b(?:research|investigate|look into|deep dive|about|profile|overview|arastir\w*|incele\w*|hakkinda|analiz\w*|kimdir|nedir)\b/
+
+  return organizationTerms.test(normalized) && researchIntent.test(normalized)
+}
+
+function getOrganizationSearchSubject(message: string): string {
+  const normalized = normalizeSearchText(message)
+    .replace(/[“”"]/g, ' ')
+    .replace(/\b(?:please|can|could|you|tell|me|find|search|research|investigate|look|into|deep|dive|about|overview|profile|arastir\w*|incele\w*|hakkinda|analiz\w*|kimdir|nedir)\b/g, ' ')
+    .replace(/\b(?:grub\w*|grup\w*)\b/g, ' Group ')
+    .replace(/\b(?:company|companies|sirket\w*|firma\w*)\b/g, ' Company ')
+    .replace(/['’][a-z]+\b/g, ' ')
+    .replace(/[?!.,;:()[\]{}]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return normalized || message.trim().slice(0, 120)
+}
+
+function buildSearchPlan(query: string): TavilySearchPlanItem[] {
+  const normalized = normalizeSearchText(query)
+  const isOrganizationResearch = isOrganizationResearchRequest(query)
+
+  if (isOrganizationResearch) {
+    const subject = getOrganizationSearchSubject(query)
+    const exactSubject = subject ? `"${subject}"` : query.trim()
+
+    return [
+      { query: query.trim(), topic: 'general' },
+      {
+        query: `${exactSubject} official website about us company profile`,
+        topic: 'general',
+      },
+      {
+        query: `${exactSubject} services products markets subsidiaries leadership projects`,
+        topic: 'general',
+      },
+      {
+        query: `${exactSubject} news announcements partnerships projects acquisitions`,
+        topic: 'news',
+      },
+    ]
   }
-
-  const lowerQuery = query.toLowerCase()
 
   const isNewsQuery =
-    lowerQuery.includes('latest') ||
-    lowerQuery.includes('recent') ||
-    lowerQuery.includes('news') ||
-    lowerQuery.includes('today') ||
-    lowerQuery.includes('this week') ||
-    lowerQuery.includes('güncel') ||
-    lowerQuery.includes('son gelişmeler') ||
-    lowerQuery.includes('haber')
+    normalized.includes('latest') ||
+    normalized.includes('recent') ||
+    normalized.includes('news') ||
+    normalized.includes('today') ||
+    normalized.includes('this week') ||
+    normalized.includes('guncel') ||
+    normalized.includes('son gelismeler') ||
+    normalized.includes('haber')
 
-        const searchQuery = isNewsQuery
-      ? `${query} latest news updates`
-      : query
-    
-    const searchPayload = {
-    query: searchQuery.slice(0, 1450),    
-    search_depth: 'advanced',
+  return [{
+    query: isNewsQuery ? `${query} latest news updates` : query,
     topic: isNewsQuery ? 'news' : 'general',
-    max_results: 5,
-    include_answer: false,
-    include_raw_content: false,
-    exclude_domains: [
-      'instagram.com',
-      'facebook.com',
-      'tiktok.com',
-      'pinterest.com',
-      'threads.net',
-    ],
+  }]
+}
+
+function canonicalizeResultUrl(value: string): string {
+  try {
+    const url = new URL(value)
+    url.hash = ''
+    for (const key of [...url.searchParams.keys()]) {
+      if (/^(utm_.+|ref|source|fbclid|gclid)$/i.test(key)) {
+        url.searchParams.delete(key)
+      }
+    }
+    return url.toString().replace(/\/$/, '').toLowerCase()
+  } catch {
+    return value.trim().toLowerCase()
+  }
+}
+
+function mergeSearchResults(
+  responses: Array<{ plan: TavilySearchPlanItem; data: TavilyResponse }>,
+): TavilyResponse {
+  const byUrl = new Map<string, TavilyResult>()
+
+  for (const { plan, data } of responses) {
+    for (const result of data.results ?? []) {
+      if (!result.url?.trim()) continue
+      const key = canonicalizeResultUrl(result.url)
+      const existing = byUrl.get(key)
+
+      if (existing) {
+        existing.matchedQueries = [
+          ...new Set([...(existing.matchedQueries ?? []), plan.query]),
+        ]
+        if ((result.score ?? 0) > (existing.score ?? 0)) existing.score = result.score
+        if ((!existing.content || existing.content.length < 120) && result.content) {
+          existing.content = result.content
+        }
+        if (!existing.published_date && result.published_date) {
+          existing.published_date = result.published_date
+        }
+      } else {
+        byUrl.set(key, { ...result, matchedQueries: [plan.query] })
+      }
+    }
   }
 
-  
-  const start = Date.now()
+  const ranked = [...byUrl.values()].sort((a, b) => {
+    const aScore = (a.score ?? 0) + Math.max(0, (a.matchedQueries?.length ?? 1) - 1) * 0.035
+    const bScore = (b.score ?? 0) + Math.max(0, (b.matchedQueries?.length ?? 1) - 1) * 0.035
+    return bScore - aScore
+  })
 
+  const selected: TavilyResult[] = []
+  const domainCounts = new Map<string, number>()
+
+  for (const result of ranked) {
+    let hostname = ''
+    try {
+      hostname = new URL(result.url ?? '').hostname.replace(/^www\./, '').toLowerCase()
+    } catch {
+      hostname = result.url ?? ''
+    }
+
+    const count = domainCounts.get(hostname) ?? 0
+    if (count >= 3) continue
+
+    selected.push(result)
+    domainCounts.set(hostname, count + 1)
+    if (selected.length >= 14) break
+  }
+
+  return { results: selected }
+}
+
+async function runTavilySearch(
+  plan: TavilySearchPlanItem,
+  apiKey: string,
+): Promise<TavilyResponse> {
+  const start = Date.now()
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 10000) // 10 sn
+  const timeout = setTimeout(() => controller.abort(), 12000)
 
   try {
+    const searchPayload = {
+      query: plan.query.slice(0, 380),
+      search_depth: 'advanced',
+      topic: plan.topic,
+      max_results: 8,
+      include_answer: false,
+      include_raw_content: false,
+      exclude_domains: [
+        'instagram.com',
+        'facebook.com',
+        'tiktok.com',
+        'pinterest.com',
+        'threads.net',
+      ],
+    }
+
     const response = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: {
@@ -791,27 +940,56 @@ async function searchWeb(query: string): Promise<TavilyResponse> {
       signal: controller.signal,
     })
 
-    console.log(`SheiLa Tavily search: ${Date.now() - start}ms`)
+    console.log(`SheiLa Tavily search (${plan.topic}): ${Date.now() - start}ms`)
 
     if (!response.ok) {
       const errorText = await response.text()
-
-      throw new Error(
-        `Tavily search failed: ${response.status} ${errorText}`,
-      )
+      throw new Error(`Tavily search failed: ${response.status} ${errorText}`)
     }
 
     return response.json() as Promise<TavilyResponse>
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('Tavily search timeout')
+      throw new Error(`Tavily search timeout for: ${plan.query}`)
     }
     throw error
   } finally {
     clearTimeout(timeout)
   }
 }
-  
+
+async function searchWeb(query: string): Promise<TavilyResponse> {
+  const apiKey = process.env.TAVILY_API_KEY
+  if (!apiKey) throw new Error('TAVILY_API_KEY is not configured')
+
+  const plan = buildSearchPlan(query)
+  const results = await Promise.allSettled(
+    plan.map((item) => runTavilySearch(item, apiKey)),
+  )
+  const successful = results.flatMap((result, index) =>
+    result.status === 'fulfilled'
+      ? [{ plan: plan[index], data: result.value }]
+      : [],
+  )
+
+  if (successful.length === 0) {
+    const failure = results.find((result) => result.status === 'rejected')
+    throw failure?.status === 'rejected'
+      ? failure.reason
+      : new Error('Tavily returned no successful search responses')
+  }
+
+  const failedCount = results.length - successful.length
+  if (failedCount > 0) {
+    console.warn(`SheiLa Tavily: ${failedCount} of ${results.length} search angles failed`)
+  }
+
+  console.log(
+    `SheiLa Tavily: ${successful.length}/${plan.length} search angles succeeded; ${successful.reduce((sum, item) => sum + (item.data.results?.length ?? 0), 0)} raw results`,
+  )
+
+  return mergeSearchResults(successful)
+}
 
 function formatSearchResults(data: TavilyResponse): string {
   const results = data.results ?? []
@@ -822,14 +1000,23 @@ function formatSearchResults(data: TavilyResponse): string {
 
   return results
     .map((result, index) => {
+      const relevance = typeof result.score === 'number'
+        ? `${Math.round(result.score * 100)} / 100`
+        : 'Not provided'
+      const matchedQueries = result.matchedQueries?.length
+        ? result.matchedQueries.join(' | ')
+        : 'Primary search'
+
       return `
 SOURCE ${index + 1}
 
 Title: ${result.title ?? 'Untitled'}
 URL: ${result.url ?? 'Unavailable'}
 Published: ${result.published_date ?? 'Unknown'}
+Tavily relevance score: ${relevance}
+Matched search angles: ${matchedQueries}
 
-Content:
+Relevant page content:
 ${result.content ?? 'No content available'}
 `
     })
@@ -998,6 +1185,9 @@ export default async function handler(
         const searchStart = Date.now()
 
         const search = await searchWeb(message)
+        console.log(
+          `SheiLa search strategy: ${isOrganizationResearchRequest(message) ? 'named-organization multi-angle' : 'standard'}`,
+        )
 
         console.log(
           `SheiLa Tavily total: ${Date.now() - searchStart}ms`,
