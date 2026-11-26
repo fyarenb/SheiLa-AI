@@ -1734,3 +1734,10 @@ html, body {
   color: #111111 !important;
   font-weight: 850 !important;
 }
+
+/* Groq only: linked text stays blue, including links wrapped in bold headings. */
+.groq-answer a:not(.source-citation),
+.groq-answer a:not(.source-citation) strong,
+.groq-answer strong a:not(.source-citation) {
+  color: var(--sheila-blue) !important;
+}
