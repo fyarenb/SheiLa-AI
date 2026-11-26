@@ -834,6 +834,28 @@ function buildSearchPlan(query: string): TavilySearchPlanItem[] {
   }]
 }
 
+function getResearchDomain(value: string): string {
+  try {
+    const hostname = new URL(value).hostname.replace(/^www\./, '').toLowerCase()
+    const labels = hostname.split('.').filter(Boolean)
+    if (labels.length <= 2) return hostname
+
+    const compoundSuffixes = new Set([
+      'co.uk', 'org.uk', 'com.uk', 'gov.uk',
+      'com.tr', 'org.tr', 'gov.tr', 'edu.tr',
+      'com.au', 'net.au', 'org.au',
+      'co.nz', 'com.br', 'com.sg', 'co.in',
+      'co.jp', 'com.mx',
+    ])
+    const suffix = labels.slice(-2).join('.')
+    return compoundSuffixes.has(suffix)
+      ? labels.slice(-3).join('.')
+      : labels.slice(-2).join('.')
+  } catch {
+    return value.trim().toLowerCase()
+  }
+}
+
 function canonicalizeResultUrl(value: string): string {
   try {
     const url = new URL(value)
@@ -887,12 +909,21 @@ function mergeSearchResults(
   const domainCounts = new Map<string, number>()
 
   for (const result of ranked) {
-    let hostname = ''
-    try {
-      hostname = new URL(result.url ?? '').hostname.replace(/^www\./, '').toLowerCase()
-    } catch {
-      hostname = result.url ?? ''
-    }
+    const hostname = getResearchDomain(result.url ?? '')
+    const excludedDomains = new Set([
+      'tavily.com',
+      'contactout.com',
+      'instagram.com',
+      'facebook.com',
+      'tiktok.com',
+      'pinterest.com',
+      'threads.net',
+      'google.com',
+      'bing.com',
+      'yahoo.com',
+      'duckduckgo.com',
+    ])
+    if (excludedDomains.has(hostname)) continue
 
     const count = domainCounts.get(hostname) ?? 0
     if (count >= 1) continue
@@ -1094,22 +1125,13 @@ function getSources(data: TavilyResponse) {
   const seenDomains = new Set<string>()
 
   return (data.results ?? [])
-    .map((result, index) => {
-      let hostname = ''
-      try {
-        hostname = new URL(result.url ?? '').hostname.replace(/^www\./, '').toLowerCase()
-      } catch {
-        hostname = (result.url ?? '').toLowerCase()
-      }
-
-      return {
-        id: index + 1,
-        title: result.title?.trim() || 'Source',
-        url: result.url?.trim() ?? '',
-        publishedDate: result.published_date ?? null,
-        hostname,
-      }
-    })
+    .map((result, index) => ({
+      id: index + 1,
+      title: result.title?.trim() || 'Source',
+      url: result.url?.trim() ?? '',
+      publishedDate: result.published_date ?? null,
+      hostname: getResearchDomain(result.url ?? ''),
+    }))
     .filter((source) => {
       if (!source.url || !source.hostname || seenDomains.has(source.hostname)) return false
       seenDomains.add(source.hostname)
