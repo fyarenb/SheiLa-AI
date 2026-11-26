@@ -1045,40 +1045,45 @@ function enforceResearchFormatting(answer: string, isTurkish: boolean): string {
   output = output.replace(
     /^(\s{0,3})(?:#{1,3}\s*)?(?:\*\*)?([^#\n*]+?)(?:\*\*)?\s*$/gim,
     (line, indent: string, rawHeading: string) => {
-      const normalized = rawHeading.trim().replace(/[：:]$/, '').trim()
+      const normalized = rawHeading
+        .trim()
+        .replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\uFE0F\u200D]/gu, '')
+        .replace(/[：:]$/, '')
+        .trim()
       const match = labels.find((item) => item.pattern.test(normalized))
-      return match ? \`\${indent}\${match.heading}\` : line
+      return match ? indent + match.heading : line
     },
   )
 
   const findingsHeading = isTurkish ? 'Önemli Bulgular' : 'Key Findings'
   const analysisHeading = isTurkish ? 'Analiz' : 'Analysis'
-  const findingsIndex = output.search(new RegExp(\`^#{1,3}\\\\s*\${findingsHeading}\\\\b.*$\`, 'im'))
+  const findingsIndex = output.search(
+    new RegExp('^#{1,3}\\s*' + findingsHeading + '\\b.*$', 'im'),
+  )
 
   if (findingsIndex >= 0) {
-    const afterHeading = output.indexOf('\\n', findingsIndex)
-    const analysisIndex = output.search(new RegExp(\`^#{1,3}\\\\s*\${analysisHeading}\\\\b.*$\`, 'im'))
+    const afterHeading = output.indexOf('\n', findingsIndex)
+    const analysisIndex = output.search(
+      new RegExp('^#{1,3}\\s*' + analysisHeading + '\\b.*$', 'im'),
+    )
+
     if (afterHeading >= 0 && analysisIndex > afterHeading) {
       const before = output.slice(0, afterHeading + 1)
       const findings = output.slice(afterHeading + 1, analysisIndex)
       const after = output.slice(analysisIndex)
       const findingEmojis = ['🧭', '📈', '🛡️']
-      let numberedFindings = 0
 
       const formattedFindings = findings.replace(
-        /^(\\s{0,3})(?:#{1,3}\\s*)?([1-3])\\.\\s*(.*)$/gm,
+        /^(\s{0,3})(?:#{1,3}\s*)?([1-3])\.\s*(.*)$/gm,
         (line, indent: string, number: string, rest: string) => {
           const emoji = findingEmojis[Number(number) - 1]
           if (!emoji) return line
-          numberedFindings += 1
           const title = rest.trim()
-          return \`\${indent}\${number}. \${emoji}\${title ? \` \${title}\` : ''}\`
+          return indent + number + '. ' + emoji + (title ? ' ' + title : '')
         },
       )
 
-      if (numberedFindings > 0) {
-        output = before + formattedFindings + after
-      }
+      output = before + formattedFindings + after
     }
   }
 
