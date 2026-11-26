@@ -792,6 +792,12 @@ function isMusicGroupResearchRequest(message: string): boolean {
   return refersToAura && musicTerms.some((term) => normalized.includes(term))
 }
 
+function isManifestIdentityRequest(message: string): boolean {
+  const normalized = normalizeSearchText(message)
+  return /\bmanifest\b/.test(normalized) &&
+    /\b(kimdir|nedir|hakkinda|grup|grubu|who|what|about|band)\b/.test(normalized)
+}
+
 function isOrganizationResearchRequest(message: string): boolean {
   if (isMusicGroupResearchRequest(message)) return false
 
@@ -1775,12 +1781,14 @@ export default async function handler(
       console.log(`SheiLa response level: ${responseLevel}`)
 
       let searchContext = ''
+      let searchResults: TavilyResult[] = []
       let sources: ReturnType<typeof getSources> = []
 
       if (!isCasual) {
         const searchStart = Date.now()
 
         const search = await searchWeb(message, requesterCountry)
+        searchResults = search.results ?? []
         console.log(
           `SheiLa search strategy: ${isOrganizationResearchRequest(message) ? 'named-organization multi-angle' : 'standard'}`,
         )
