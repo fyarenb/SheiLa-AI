@@ -1560,9 +1560,14 @@ function formatGroqAnswer(
       (_whole, boundary: string, _number: string, emoji: string, rawTitle: string) =>
         boundary + '\n\n' + emoji + '**' + rawTitle.trim() + ':** ',
     ).trim()
+    // Keep each Groq finding in its own paragraph, with one blank line before the next bold heading.
+    const spacedFindings = unnumberedFindings.replace(
+      /\n{1,2}(?=(?:\p{Extended_Pictographic}\uFE0F?[ \t]*)?\*\*[^*\n]{2,70}:\*\*)/gu,
+      '\n\n',
+    )
     formatted = [
       ...outputLines.slice(0, findingsStart + 1),
-      unnumberedFindings,
+      spacedFindings,
       ...outputLines.slice(analysisStart),
     ].join('\n')
   }
