@@ -1663,3 +1663,9 @@ html, body {
 .next-step-section {
   margin-top: 2em !important;
 }
+
+
+/* One blank line between numbered list items only. */
+.sheila-answer-text ol > li + li {
+  margin-top: 1em !important;
+}
