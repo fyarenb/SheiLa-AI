@@ -792,12 +792,6 @@ function isMusicGroupResearchRequest(message: string): boolean {
   return refersToAura && musicTerms.some((term) => normalized.includes(term))
 }
 
-function isManifestIdentityRequest(message: string): boolean {
-  const normalized = normalizeSearchText(message)
-  return /\bmanifest\b/.test(normalized) &&
-    /\b(kimdir|nedir|hakkinda|grup|grubu|who|what|about|band)\b/.test(normalized)
-}
-
 function isOrganizationResearchRequest(message: string): boolean {
   if (isMusicGroupResearchRequest(message)) return false
 
@@ -1512,7 +1506,6 @@ function formatGroqAnswer(
     for (const { source, aliases } of sourceAliases) {
       for (const alias of aliases) {
         if (normalizeLabel(alias).length < 4) continue
-        if (isManifestIdentityRequest(message) && normalizeLabel(alias) === 'manifest') continue
         const pattern = new RegExp(
           '(?<![\\p{L}\\p{N}])' + escapeRegex(alias.trim()) + '(?![\\p{L}\\p{N}])',
           'giu',
@@ -1543,30 +1536,6 @@ function formatGroqAnswer(
     .replace(/\b(20\d{2})\b/g, '**$1**')
     .replace(/\b(\d+(?:[.,]\d+)?\s?(?:%|kişi|üye|milyon|bin|million|thousand))\b/gi, '**$1**')
 
-  if (isManifestIdentityRequest(message)) {
-    formatted = formatted
-      .replace(
-        /(?<![\p{L}*])(?:Esin Bahat|Hilal Yelekçi|Lidya Pınar|Mina Solak|Sueda Uluca|Zeynep Sude Oktay)(?![\p{L}*])/giu,
-        (match) => '**' + match + '**',
-      )
-      .replace(
-        /(?<![\p{L}*])(?:Big5 Türkiye|Hypers New Media)(?![\p{L}*])/giu,
-        (match) => '**' + match + '**',
-      )
-  }
-
-  if (isMusicGroupResearchRequest(message)) {
-    // Bold the complete Turkish finding labels, including their colons.
-**',
-      )
-      .replace(
-        /(?<![\p{L}*])(?:Big5 Türkiye|Hypers New Media)(?![\p{L}*])/giu,
-        '**  if (isMusicGroupResearchRequest(message)) {
-    // Bold the complete Turkish finding labels, including their colons.
-**',
-      )
-  }
-
   if (isMusicGroupResearchRequest(message)) {
     // Bold the complete Turkish finding labels, including their colons.
     formatted = formatted.replace(
@@ -1588,32 +1557,6 @@ function formatGroqAnswer(
   }
 
   return formatted
-}
-
-function linkManifestOfficialWebsite(answer: string, message: string): string {
-  if (!isManifestIdentityRequest(message)) return answer
-
-  const officialUrl = 'https://manifestgirlband.com/tr/'
-  let linked = answer.replace(
-    /\[(?:\*\*)?Manifest(?:\*\*)?\]\(https?:\/\/[^)\s]+(?:\s+"[^"]*")?\)/gi,
-    '[**Manifest**](' + officialUrl + ')',
-  )
-
-  const protectedPattern = /(\x60{3}[\s\S]*?\x60{3}|https?:\/\/[^\s)]+|\[[^\]]+\]\([^)]+\))/g
-  linked = linked.split(protectedPattern).map((part) => {
-    if (
-      part.startsWith('\x60\x60\x60') ||
-      /^https?:\/\//i.test(part) ||
-      /^\[[^\]]+\]\([^)]+\)$/.test(part)
-    ) return part
-
-    return part.replace(
-      /(?<!\[)(?<!\*)\bManifest\b(?!\*\*|\]\s*\()/gi,
-      '[**Manifest**](' + officialUrl + ')',
-    )
-  }).join('')
-
-  return linked
 }
 
 function normalizeGreetingText(message: string): string {
@@ -1832,14 +1775,12 @@ export default async function handler(
       console.log(`SheiLa response level: ${responseLevel}`)
 
       let searchContext = ''
-      let searchResults: TavilyResult[] = []
       let sources: ReturnType<typeof getSources> = []
 
       if (!isCasual) {
         const searchStart = Date.now()
 
         const search = await searchWeb(message, requesterCountry)
-        searchResults = search.results ?? []
         console.log(
           `SheiLa search strategy: ${isOrganizationResearchRequest(message) ? 'named-organization multi-angle' : 'standard'}`,
         )
@@ -1942,16 +1883,128 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
           model: 'gemini-4-hydrogen',
           contents: researchPrompt,
           config: {
-            systemInstruction: `${languageInstruction}\n\n${locationInstruction}\n\n${isGroqGreeting
-        ? "You are SheiLa AI. Reply to a greeting briefly and naturally in the user language. Do not add research sections."
-        : "You are SheiLa AI, a professional research analyst. For every non-greeting question, including short factual questions, provide all five sections: Executive Summary, Key Findings, Analysis, Bottom Line, and Next Step, translated into the user language. Use only supplied sources for factual claims, cite them, bold important names and facts, and do not omit sections because the question is short."}`,
+            systemInstruction: `${languageInstruction}\n\n${locationInstruction}\n\n${isSimple
+              ? "You are SheiLa AI. Answer straightforward questions clearly and concisely in the user's language. Use supplied web sources for factual claims and cite them as [Source N]. Do not force a research-report structure. Never sacrifice factual accuracy for brevity."
+              : isMedium
+                ? "You are SheiLa AI, a knowledgeable research assistant. Give moderately detailed, practical explanations in the user's language. Use supplied sources and cite factual claims as [Source N]. Include useful distinctions, examples, or steps when relevant. Do not force a full research report."
+                : SYSTEM_PROMPT}`,
+            maxOutputTokens: isSimple ? 900 : isMedium ? 1400 : 2200,
+            thinkingConfig: {
+              thinkingLevel: ThinkingLevel.LOW,
+            },
+          },
+        })
+
+        let text = ''
+        for await (const chunk of geminiStream) {
+          text += chunk.text ?? ''
+        }
+        if (!text.trim()) throw new Error('Gemini returned an empty streamed response')
+        return text
+      })()
+
+      let timeoutId: ReturnType<typeof setTimeout> | undefined
+      const timeout = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error('Gemini exceeded the 45-second response limit')),
+          45_000,
+        )
+      })
+
+      try {
+        streamedGeminiText = await Promise.race([geminiTask, timeout])
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId)
+      }
+
+      streamedByGemini = true
+      response = { text: streamedGeminiText }
+      console.log(`SheiLa Gemini: response completed within 45s (${Date.now() - geminiStart}ms)`)
+      usedModel = 'gemini-4-hydrogen'
+      lastError = null    } catch (error) {
+      lastError = error
+
+      console.error('SheiLa Gemini 4 Hydrogen streaming failed:', error)
+
+      if (streamedByGemini) {
+        console.error('SheiLa Gemini stream stopped after partial output; skipping fallback to avoid mixing responses.')
+        if (!isGreetingMessage(message) && sources.length > 0) {
+          res.write(
+            `\\n\\n### Sources\\n\\n${sources
+              .map((source) => `${source.id}. [${source.title}](${source.url})`)
+              .join('\\n')}`,
+          )
+        }
+        res.end()
+        return
+      }
+
+      console.log('SheiLa: trying Groq fallback')
+      
+      try {
+  
+ const groqPrompt = isSimple
+   ? `
+${researchPrompt}
+
+GROQ OUTPUT RULES:
+- Answer directly in 2–4 concise sentences.
+- Use [Source N] citations for factual claims supported by supplied sources; citations must be the only source attribution in the text.
+- Never write publisher or source names such as Hürriyet, Source 1, or Source 2 in prose or parentheses.
+- Use Markdown bold for important names, people, organizations, key facts, dates, and titles in quotation marks.
+- Do not use research-report headings or a Next Step question.
+- Reply in the user's language.
+`
+   : isMedium
+     ? `
+${researchPrompt}
+
+GROQ OUTPUT RULES:
+- Give a moderately detailed answer, normally 2–4 short paragraphs or concise bullets.
+- Include examples, distinctions, or practical steps when they improve the answer.
+- Use [Source N] citations for factual claims supported by supplied sources; citations must be the only source attribution in the text.
+- Never write publisher or source names such as Hürriyet, Source 1, or Source 2 in prose or parentheses.
+- Use Markdown bold for important names, people, organizations, key facts, dates, and titles in quotation marks.
+- Do not force research-report headings or a Next Step question.
+- Reply in the user's language.
+`
+     : `
+${researchPrompt}
+
+GROQ OUTPUT RULES:
+- Follow the complete research brief and formatting requirements.
+- Provide exactly 3 Key Findings, each with exactly 2 complete sentences.
+- Cite factual claims immediately before sentence-ending punctuation using [Source N]; citations must be the only source attribution in the text.
+- Never write publisher or source names such as Hürriyet, Source 1, or Source 2 in prose or parentheses.
+- Use Markdown bold for important names, people, organizations, key facts, dates, and titles in quotation marks.
+- Include the equivalent of Executive Summary, Key Findings, Analysis, Bottom Line, and one concise Next Step question, translated into the user's language. For Turkish requests, use exactly: Özet, Önemli Bulgular, Analiz, Sonuç, Sonraki Adım. Never leave English section headings in a Turkish answer.
+- Remove redundant parenthetical restatements such as “stylized AURA”; do not pad the answer with wording that adds no useful information.
+- Do not invent facts or citations; reply entirely in the user's language.
+`
+
+ console.log(
+    `SheiLa Groq prompt chars: ${groqPrompt.length}`,
+  )  
+  
+  const groqStream = await groq.chat.completions.create({
+  model: 'openai/gpt-oss-120b',
+  messages: [
+    {
+      role: 'system',
+      content: `${languageInstruction}\n\n${locationInstruction}\n\nOUTPUT LANGUAGE LOCK: ${isTurkishGroqRequest(message)
+        ? 'The original user request is in Turkish. Write every sentence, explanation, bullet, heading, and follow-up question in fluent Turkish. Translate information from English sources into Turkish. Use exactly these research headings when needed: Özet, Önemli Bulgular, Analiz, Sonuç, Sonraki Adım. Keep only proper names, official names, and original work titles in their original language.'
+        : 'Determine the response language from the original user message only. Ignore the language of web results and source titles. Write all narrative text, headings, bullets, and follow-up questions in that same language. Keep proper names and official titles in their original form.'}\n\n${isSimple
+        ? "You are SheiLa AI. Answer clearly and concisely in the user's language. Use supplied sources and citations when relevant."
+        : isMedium
+          ? "You are SheiLa AI. Give practical, moderately detailed answers in the user's language. Cite source-based factual claims."
+          : "You are SheiLa AI, a professional research analyst. Use only the supplied web sources. Do not invent facts, dates, statistics, URLs, or citations. Evaluate source reliability, synthesize evidence, distinguish facts from interpretation, and state uncertainty. For substantial research, provide an executive summary, exactly three evidence-supported findings with citations, concise analysis, a bottom line, and one relevant next-step question. Reply in the user's language."}`,
     },
     {
       role: 'user',
       content: `${groqPrompt}\n\nFINAL LANGUAGE CHECK: The language of the original user message—not the language of the web results—controls the language of the entire answer. Keep the wording concise and remove redundant phrases that add no information.`,
     },
   ],
-  max_completion_tokens: isGroqGreeting ? 500 : 2600,
+  max_completion_tokens: isSimple ? 900 : isMedium ? 1400 : 2000,
   reasoning_effort: 'low',
   stream: true,
 })
@@ -2068,10 +2121,12 @@ if (!groqText.trim()) {
 
     let answerText = response.text ?? ''
 
-    if (usedModel === 'groq/openai/gpt-oss-120b' && !isGreetingMessage(message)) {
-      answerText = enforceResearchFormatting(answerText, isTurkishMessage(message), true)
-    } else if (usedModel === 'gemini-4-hydrogen' && !isSimple && !isMedium) {
-      answerText = enforceResearchFormatting(answerText, isTurkishMessage(message), false)
+    if (!isSimple && !isMedium) {
+      answerText = enforceResearchFormatting(
+        answerText,
+        isTurkishMessage(message),
+        usedModel === 'groq/openai/gpt-oss-120b',
+      )
     }
 
     // Let the client apply Gemini-specific presentation without changing Groq answers.
@@ -2082,7 +2137,6 @@ if (!groqText.trim()) {
 
     if (usedModel === 'groq/openai/gpt-oss-120b') {
       answerText = formatGroqAnswer(answerText, sources, message)
-      answerText = linkManifestOfficialWebsite(answerText, message)
       // Preserve the existing Groq-only presentation behavior.
       answerText = linkAuraMusicMentions(answerText, message)
     } else if (usedModel === 'gemini-4-hydrogen') {
