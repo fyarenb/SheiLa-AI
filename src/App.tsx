@@ -151,6 +151,7 @@ function renderSheilaContent(
 ) => void,
   isNextStepResponse = false,
   isGeminiResponse = false,
+  isGroqResponse = false,
 ) {
     const isTurkish = /[çğıöşüÇĞİÖŞÜ]/.test(content)
     const cleanContent = content
@@ -321,7 +322,7 @@ function renderSheilaContent(
       onClick={() => onNextStep(nextStepQuestion, true)}
     >
             <span className="next-step-label">
-        {isTurkish ? 'Sonraki Adım' : 'Next Step'}
+        {isGroqResponse ? '🧭 ' : ''}{isTurkish ? 'Sonraki Adım' : 'Next Step'}
       </span>
       <span className="next-step-arrow">→</span>
       <span className="next-step-question">
@@ -768,6 +769,7 @@ function App() {
                     submitResearchQuestion,
                     item.isNextStepResponse,
                     item.provider === 'gemini',
+                    item.provider === 'groq',
                      )
                     : item.content}
                 </div>
