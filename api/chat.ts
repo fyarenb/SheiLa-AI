@@ -1074,15 +1074,21 @@ function enforceResearchFormatting(answer: string, isTurkish: boolean): string {
       ]
 
   const cleanEmoji = (value: string) =>
-    value.replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\uFE0F\u200D]/gu, '').trim()
+    value
+      .replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\uFE0F\u200D]/gu, '')
+      .replace(/\*\*/g, '')
+      .trim()
 
+  // Normalize both Markdown headings (## Heading) and bold-only headings (**Heading**).
   for (let i = 0; i < lines.length; i += 1) {
-    const match = lines[i].match(/^(\s{0,3})(#{1,3})\s*(.*?)\s*$/)
+    const match = lines[i].match(/^(\s{0,3})(?:#{1,3}\s*)?(.*?)\s*$/)
     if (!match) continue
 
-    const headingText = cleanEmoji(match[3].replace(/\*\*/g, '').replace(/[：:]$/, ''))
+    const headingText = cleanEmoji(match[2].replace(/[：:]$/, ''))
     const section = sectionHeadings.find((item) =>
-      item.names.some((name) => name.toLocaleLowerCase('tr-TR') === headingText.toLocaleLowerCase('tr-TR')),
+      item.names.some((name) =>
+        name.toLocaleLowerCase('tr-TR') === headingText.toLocaleLowerCase('tr-TR'),
+      ),
     )
 
     if (section) {
@@ -1093,16 +1099,18 @@ function enforceResearchFormatting(answer: string, isTurkish: boolean): string {
   const findingsLabel = isTurkish ? 'Önemli Bulgular' : 'Key Findings'
   const analysisLabel = isTurkish ? 'Analiz' : 'Analysis'
   const headingName = (line: string) =>
-    cleanEmoji(line.replace(/^\s{0,3}#{1,3}\s*/, '').replace(/\*\*/g, '').trim())
+    cleanEmoji(line.replace(/^\s{0,3}#{1,3}\s*/, ''))
 
-  const findingsIndex = lines.findIndex((line) => headingName(line).startsWith(findingsLabel))
+  const findingsIndex = lines.findIndex((line) =>
+    headingName(line).startsWith(findingsLabel),
+  )
   let analysisIndex = lines.findIndex((line, index) =>
     index > findingsIndex && headingName(line).startsWith(analysisLabel),
   )
 
   if (findingsIndex >= 0 && analysisIndex > findingsIndex) {
-    // Join a standalone "1." marker with its first paragraph to avoid detached,
-    // oversized list items in the rendered report.
+    // Models sometimes put "1." on a separate line from the finding paragraph.
+    // Join them so Markdown renders one compact numbered list item.
     for (let i = findingsIndex + 1; i < analysisIndex; i += 1) {
       const marker = lines[i].match(/^(\s{0,3})([1-3])\.\s*$/)
       if (!marker) continue
@@ -1129,7 +1137,6 @@ function enforceResearchFormatting(answer: string, isTurkish: boolean): string {
 
   return lines.join('\n').replace(/\n{3,}/g, '\n\n')
 }
-
 
 function getSources(data: TavilyResponse) {
   const seenDomains = new Set<string>()
