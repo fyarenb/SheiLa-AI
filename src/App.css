@@ -1437,30 +1437,92 @@ html, body {
   opacity: 0.78;
 }
   
-/* ===== Compact research finding spacing ===== */
+/* ===== Compact, consistent research report spacing ===== */
 
-.sheila-answer-text ol > li > p {
-  margin-top: -6px !important;
+.sheila-answer-text {
+  line-height: 1.5;
 }
 
-.sheila-answer-text ol > li + li {
-  margin-top: 2px;
+.sheila-answer-text > p,
+.sheila-answer-text p {
+  margin: 0 0 5px !important;
 }
 
-/* Analysis / Bottom Line heading-to-text spacing */
-.sheila-answer-text h2:not(:first-child) + p {
-  margin-top: -6px !important;
+.sheila-answer-text h1,
+.sheila-answer-text h2,
+.sheila-answer-text h3 {
+  line-height: 1.22;
 }
-/* Move all bullet-point sentences up by one line */
+
+.sheila-answer-text h2 {
+  margin: 12px 0 5px !important;
+}
+
+.sheila-answer-text h2:first-child {
+  margin-top: 0 !important;
+}
+
+.sheila-answer-text h3 {
+  margin: 9px 0 4px !important;
+}
+
+.sheila-answer-text h2 + p,
+.sheila-answer-text h3 + p {
+  margin-top: 0 !important;
+}
+
+.sheila-answer-text ol,
+.sheila-answer-text ul {
+  margin: 3px 0 7px !important;
+  padding-left: 24px;
+}
+
+.sheila-answer-text ol > li,
+.sheila-answer-text ul > li {
+  margin: 0 !important;
+  padding-left: 2px;
+}
+
+.sheila-answer-text ol > li + li,
+.sheila-answer-text ul > li + li {
+  margin-top: 5px !important;
+}
+
+.sheila-answer-text ol > li > p,
+.sheila-answer-text ul > li > p {
+  margin: 0 0 3px !important;
+}
+
 .sheila-answer-text ul li {
-  transform: translateY(-1.7em);
+  transform: none !important;
+}
+
+.sources-section {
+  margin-top: 10px;
+}
+
+.sources-title {
+  margin-bottom: 6px;
+}
+
+.sources-list {
+  gap: 6px;
+}
+
+.next-step-section {
+  margin-top: 8px;
+}
+
+.chat-message {
+  margin-bottom: 18px;
 }
 
 @media (max-width: 700px) {
-  .disclaimer {
-    transform: translateY(-20px) !important;
+  .sheila-answer-text h2 {
+    margin-top: 10px !important;
+  }
+
+  .sheila-answer-text h3 {
+    margin-top: 7px !important;
   }
 }
-
-
-
