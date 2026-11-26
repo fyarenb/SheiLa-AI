@@ -332,7 +332,7 @@ function renderSheilaContent(
   </div>
 )}
       {sources.length > 0 && (
-        <div className="sources-section">
+        <div className={`sources-section${isGroqResponse ? ' groq-sources' : ''}`}>
         <div className="sources-title">
           {isTurkish ? 'Kaynaklar' : 'Sources'}
         </div>
@@ -343,7 +343,7 @@ function renderSheilaContent(
 
               return (
                 <a
-                  className="source-card"
+                  className={`source-card${isGroqResponse ? ' groq-source-card' : ''}`}
                   key={source.number}
                   href={source.url}
                   target="_blank"
