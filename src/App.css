@@ -1711,3 +1711,9 @@ html, body {
   color: #111111 !important;
   font-weight: 900 !important;
 }
+
+
+/* Gemini-only: add one extra blank line after findings 1 and 2. */
+.gemini-answer ol > li:nth-child(-n + 2) {
+  margin-bottom: 2em !important;
+}
