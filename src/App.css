@@ -1741,3 +1741,9 @@ html, body {
 .groq-answer strong a:not(.source-citation) {
   color: var(--sheila-blue) !important;
 }
+
+
+/* Groq-only: add one blank line between consecutive finding paragraphs. */
+.groq-answer p + p {
+  margin-top: 1em !important;
+}
