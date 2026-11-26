@@ -1288,6 +1288,25 @@ function enforceResearchFormatting(answer: string, isTurkish: boolean): string {
   return lines.join('\n').replace(/\n{3,}/g, '\n\n')
 }
 
+function linkAuraMusicMentions(answer: string, message: string): string {
+  if (!isMusicGroupResearchRequest(message)) return answer
+
+  const officialArtistChannel = 'https://www.youtube.com/@aura4world'
+
+  // Do not alter fenced code blocks, raw URLs, or AURA mentions already linked by the model.
+  return answer
+    .split(/(\x60{3}[\s\S]*?\x60{3}|https?:\/\/[^\s)]+)/g)
+    .map((part) => {
+      if (part.startsWith('\x60\x60\x60') || /^https?:\/\//i.test(part)) return part
+
+      return part.replace(
+        /(?<!\[)\bAURA\b(?!\]\s*\()/g,
+        '[AURA](' + officialArtistChannel + ')',
+      )
+    })
+    .join('')
+}
+
 function getSources(data: TavilyResponse) {
   const seenDomains = new Set<string>()
 
@@ -1826,6 +1845,9 @@ if (!groqText.trim()) {
         isTurkishMessage(message),
       )
     }
+
+    // Keep entity links consistent whichever model generated the answer.
+    answerText = linkAuraMusicMentions(answerText, message)
 
     res.write(answerText)
 
