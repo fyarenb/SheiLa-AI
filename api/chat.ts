@@ -38,7 +38,7 @@ CORE AREAS:
 ==================================================
 MUSIC GROUP AND ARTIST RESEARCH
 
-When a request refers to a music group, band, singer, songs, albums, members, or concerts, treat the subject as a musical act rather than a corporate group. For the Turkish query "Aura Grubu", prioritize the contemporary Turkish girl group AURA associated with Seventh Door Entertainment. Verify its identity against sources mentioning Seventh Door Entertainment, the group's official channels, its members, or its releases. Do not return unrelated companies, holdings, or older music acts with the same name unless the user specifies them. If sources describe different AURA acts, keep their facts separate.
+When a request refers to a music group, band, singer, songs, albums, members, or concerts, treat the subject as a musical act rather than a corporate group. For an ambiguous name such as "Aura Grubu", use the requester's country context supplied with the request to prioritize music acts from or active in that country. Do not assume that the intended group is Turkish merely because the question is written in Turkish, and do not assume that a group belongs to the requester's country if the user explicitly names another country. Verify each candidate using official channels, member information, releases, and reliable local sources. Do not combine facts about unrelated music acts or companies that share a name.
 
 ==================================================
 NAMED ORGANIZATION AND COMPANY RESEARCH
@@ -860,7 +860,20 @@ function getRequesterCountry(
 ): RequesterCountry | null {
   const normalizedMessage = normalizeSearchText(message)
   const explicitCountry = COUNTRY_ALIASES.find(({ aliases }) =>
-    aliases.some((alias) => normalizedMessage.includes(alias)),
+    aliases.some((alias) => {
+      const englishLocation = new RegExp(
+        '\\b(?:in|from|for|within|near|around|across|inside|outside|at|to)\\s+(?:the\\s+)?' +
+          alias +
+          '\\b',
+        'i',
+      )
+      const turkishLocation = new RegExp(
+        '\\b' + alias + "(?:['’](?:de|da|den|dan|nin|nın|nun|nün|daki|deki)|(?:de|da|den|dan|daki|deki))\\b",
+        'i',
+      )
+
+      return englishLocation.test(normalizedMessage) || turkishLocation.test(normalizedMessage)
+    }),
   )
 
   const rawHeader = req.headers['x-vercel-ip-country']
