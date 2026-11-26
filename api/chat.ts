@@ -1313,10 +1313,10 @@ function normalizeGreetingText(message: string): string {
     .trim()
     .toLocaleLowerCase('tr-TR')
     .normalize('NFD')
-    .replace(/[\\u0300-\\u036f]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/ı/g, 'i')
-    .replace(/[^a-z\\s]/g, ' ')
-    .replace(/\\s+/g, ' ')
+    .replace(/[^a-z\s]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
 }
 
@@ -1349,16 +1349,8 @@ function isTurkishGreetingInput(message: string): boolean {
   if (words.length > 3) return false
 
   const allowedFollowUps = new Set(['ya', 'ben', 'hey', 'naber', 'nasilsin'])
-  if (words.length > 1 && !words.slice(1).every((word) => allowedFollowUps.has(word))) {
-    // Also allow split syllables such as "merha ba".
-    const compact = words.join('').replace(/(.)\\1+/g, '$1')
-    if (compact.length < 5 || compact.length > 9 || greetingEditDistance(compact, 'merhaba') > 2) {
-      return false
-    }
-  }
-
-  const compact = words.join('').replace(/(.)\\1+/g, '$1')
-  const firstWord = words[0].replace(/(.)\\1+/g, '$1')
+  const compact = words.join('').replace(/(.)\1+/g, '$1')
+  const firstWord = words[0].replace(/(.)\1+/g, '$1')
   const commonForms = new Set([
     'mrb',
     'mrhb',
@@ -1376,34 +1368,32 @@ function isTurkishGreetingInput(message: string): boolean {
   if (commonForms.has(normalized) || commonForms.has(compact)) return true
   if (compact === 'merhaba' || compact === 'merhabalar') return true
 
+  if (words.length > 1 && !words.slice(1).every((word) => allowedFollowUps.has(word))) {
+    return compact.length >= 5 &&
+      compact.length <= 10 &&
+      greetingEditDistance(compact, 'merhaba') <= 2
+  }
+
   return (
-    compact.length >= 5 &&
-    compact.length <= 9 &&
-    greetingEditDistance(compact, 'merhaba') <= 2
-  ) || (
-    (firstWord === 'merhaba' ||
-      (firstWord.length >= 5 && firstWord.length <= 9 &&
-        greetingEditDistance(firstWord, 'merhaba') <= 2)) &&
-    words.slice(1).every((word) => allowedFollowUps.has(word))
+    (compact.length >= 5 &&
+      compact.length <= 10 &&
+      greetingEditDistance(compact, 'merhaba') <= 2) ||
+    (firstWord.length >= 5 &&
+      firstWord.length <= 10 &&
+      greetingEditDistance(firstWord, 'merhaba') <= 2 &&
+      words.slice(1).every((word) => allowedFollowUps.has(word)))
   )
 }
 
+
 function isGreetingMessage(message: string): boolean {
   const text = normalizeGreetingText(message)
-  const compact = text.replace(/\\s/g, '').replace(/(.)\\1+/g, '$1')
+  const compact = text.replace(/\s/g, '').replace(/(.)\1+/g, '$1')
   const words = text.split(' ').filter(Boolean)
   if (words.length > 5) return false
 
   if (isTurkishGreetingInput(message)) return true
 
-  const greetings = new Set([
-    'hey',
-    'hi',
-    'hello',
-    'good morning',
-    'good afternoon',
-    'good evening',
-  ])
   const compactEnglishGreetings = new Set([
     'hey',
     'hi',
@@ -1423,9 +1413,7 @@ function isGreetingMessage(message: string): boolean {
     'what is up',
   ])
 
-  return greetings.has(text) ||
-    compactEnglishGreetings.has(compact) ||
-    casualQuestions.has(text)
+  return compactEnglishGreetings.has(compact) || casualQuestions.has(text)
 }
 
 function isCasualMessage(message: string): boolean {
@@ -1499,7 +1487,7 @@ export default async function handler(
 
     if (isGreetingMessage(message)) {
       const normalizedMessage = normalizeGreetingText(message)
-      const compactMessage = normalizedMessage.replace(/\\s/g, '').replace(/(.)\\1+/g, '$1')
+      const compactMessage = normalizedMessage.replace(/\s/g, '').replace(/(.)\1+/g, '$1')
       const isEnglishGreeting = new Set([
         'hi', 'hello', 'hey', 'heythere',
         'goodmorning', 'goodafternoon', 'goodevening',
