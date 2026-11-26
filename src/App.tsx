@@ -250,7 +250,7 @@ function renderSheilaContent(
   
   return (
     <>
-      <div className={`sheila-answer-text${isGeminiResponse ? ' gemini-answer' : ''}`}>
+      <div className={`sheila-answer-text${isGeminiResponse ? ' gemini-answer' : ''}${isGroqResponse ? ' groq-answer' : ''}`}>
         <ReactMarkdown
   components={{
     img: () => null,
