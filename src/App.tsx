@@ -120,7 +120,8 @@ type ChatMessage = {
   role: 'user' | 'sheila'
   content: string
   streaming?: boolean
-isNextStepResponse?: boolean
+  isNextStepResponse?: boolean
+  provider?: 'gemini' | 'groq'
 }
 
 type SourceItem = {
@@ -149,6 +150,7 @@ function renderSheilaContent(
   isNextStepResponse?: boolean,
 ) => void,
   isNextStepResponse = false,
+  isGeminiResponse = false,
 ) {
     const isTurkish = /[çğıöşüÇĞİÖŞÜ]/.test(content)
     const cleanContent = content
@@ -247,7 +249,7 @@ function renderSheilaContent(
   
   return (
     <>
-      <div className="sheila-answer-text">
+      <div className={`sheila-answer-text${isGeminiResponse ? ' gemini-answer' : ''}`}>
         <ReactMarkdown
   components={{
     img: () => null,
@@ -565,6 +567,9 @@ function App() {
         throw new Error('Streaming response is not available.')
       }
 
+      const responseProvider =
+        res.headers.get('X-SheiLa-Provider') === 'gemini' ? 'gemini' : 'groq'
+
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
 
@@ -574,8 +579,8 @@ function App() {
           role: 'sheila',
           content: '',
           streaming: true,
-         isNextStepResponse: currentIsNextStepResponse,
-
+          isNextStepResponse: currentIsNextStepResponse,
+          provider: responseProvider,
         },
       ])
 
@@ -762,6 +767,7 @@ function App() {
                     item.content,
                     submitResearchQuestion,
                     item.isNextStepResponse,
+                    item.provider === 'gemini',
                      )
                     : item.content}
                 </div>
