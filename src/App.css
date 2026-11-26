@@ -1696,3 +1696,18 @@ html, body {
 .sheila-answer-text ol > li:not(:last-child) {
   margin-bottom: 1em !important;
 }
+
+
+/* Keep the assistant attribution as two distinct words: SheiLa AI. */
+.assistant-brand-name {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+  white-space: nowrap;
+}
+
+/* Ordered-list numbers should be bold black like the numbered item headings. */
+.sheila-answer-text ol > li::marker {
+  color: #111111 !important;
+  font-weight: 900 !important;
+}
