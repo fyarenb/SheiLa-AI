@@ -1686,3 +1686,13 @@ html, body {
 .sheila-answer-text li {
   line-height: 1.7 !important;
 }
+
+
+/* Put one blank line after the explanatory text of each numbered item except the last. */
+.sheila-answer-text ol > li + li {
+  margin-top: 0 !important;
+}
+
+.sheila-answer-text ol > li:not(:last-child) {
+  margin-bottom: 1em !important;
+}
