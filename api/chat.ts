@@ -1712,6 +1712,13 @@ function isGreetingMessage(message: string): boolean {
   return compactEnglishGreetings.has(compact) || casualQuestions.has(text)
 }
 
+function isGeminiSimpleGreeting(message: string): boolean {
+  const compact = normalizeGreetingText(message)
+    .replace(/\\s/g, '')
+    .replace(/(.)\\1+/g, '$1')
+  return new Set(['merhaba', 'naber', 'nasilsin', 'napiyorsun', 'selam']).has(compact)
+}
+
 function isCasualMessage(message: string): boolean {
   const text = message.trim().toLowerCase()
   const wordCount = text.split(/\s+/).filter(Boolean).length
@@ -1814,9 +1821,10 @@ export default async function handler(
         : "REQUESTER COUNTRY CONTEXT: No reliable requester-country information is available. Do not guess the user's country. Use any location stated explicitly in the question; otherwise preserve the appropriate global scope."
 
       const isCasual = isCasualMessage(message)
-      const responseLevel = isCasual ? 'casual' : classifyQuestion(message)
-      const isSimple = responseLevel === 'simple'
-      const isMedium = responseLevel === 'medium'
+      const isGeminiSimple = isGeminiSimpleGreeting(message)
+      const responseLevel = isGeminiSimple ? 'simple' : (isCasual ? 'casual' : classifyQuestion(message))
+      const isSimple = isGeminiSimple
+      const isMedium = !isGeminiSimple && responseLevel === 'medium'
       console.log(`SheiLa response level: ${responseLevel}`)
 
       let searchContext = ''
