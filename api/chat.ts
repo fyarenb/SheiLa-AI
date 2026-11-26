@@ -1714,8 +1714,8 @@ function isGreetingMessage(message: string): boolean {
 
 function isGeminiSimpleGreeting(message: string): boolean {
   const compact = normalizeGreetingText(message)
-    .replace(/\\s/g, '')
-    .replace(/(.)\\1+/g, '$1')
+    .replace(/\s/g, '')
+    .replace(/(.)\1+/g, '$1')
   return new Set(['merhaba', 'naber', 'nasilsin', 'napiyorsun', 'selam']).has(compact)
 }
 
