@@ -1204,7 +1204,7 @@ ${result.content ?? 'No content available'}
     .join('\n-------------------------\n')
 }
 
-function enforceResearchFormatting(answer: string, isTurkish: boolean): string {
+function enforceResearchFormatting(answer: string, isTurkish: boolean, isGroq: boolean = false): string {
   const lines = answer.replace(/\r\n/g, '\n').split('\n')
 
   const sectionHeadings = isTurkish
@@ -1274,7 +1274,7 @@ function enforceResearchFormatting(answer: string, isTurkish: boolean): string {
       analysisIndex -= next - i
     }
 
-    const findingEmojis = ['🧭', '📈', '🛡️']
+    const findingEmojis = isGroq ? ['👥', '🎼', '🎙️'] : ['🧭', '📈', '🛡️']
     for (let i = findingsIndex + 1; i < analysisIndex; i += 1) {
       const marker = lines[i].match(/^(\s{0,3})([1-3])\.\s*(.*)$/)
       if (!marker) continue
@@ -1537,6 +1537,19 @@ function formatGroqAnswer(
     .replace(/\b(\d+(?:[.,]\d+)?\s?(?:%|kişi|üye|milyon|bin|million|thousand))\b/gi, '**$1**')
 
   if (isMusicGroupResearchRequest(message)) {
+    // Bold the complete Turkish finding labels, including their colons.
+    formatted = formatted.replace(
+      /^(\s{0,3}\d+\.\s*(?:[\p{Extended_Pictographic}\uFE0F\u200D]+\s*)*)(Üyeler|Müzikal\s+Çıkış|Algı\s+ve\s+Performans)\s*:/gimu,
+      (_whole, prefix: string, label: string) => {
+        const canonical = label.toLocaleLowerCase('tr-TR') === 'müzikal çıkış'
+          ? 'Müzikal Çıkış'
+          : label.toLocaleLowerCase('tr-TR') === 'algı ve performans'
+            ? 'Algı ve Performans'
+            : 'Üyeler'
+        return prefix + '**' + canonical + ':**'
+      },
+    )
+
     formatted = formatted.replace(
       /(^|[^\p{L}])((?:Aslı|Esra|Meri|Suzy)(?:\s*\((?:Su|Ateş|Toprak|Hava)\))?)(?=$|[^\p{L}])/giu,
       '$1**$2**',
@@ -2112,6 +2125,7 @@ if (!groqText.trim()) {
       answerText = enforceResearchFormatting(
         answerText,
         isTurkishMessage(message),
+        usedModel === 'groq/openai/gpt-oss-120b',
       )
     }
 
