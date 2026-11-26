@@ -1799,6 +1799,35 @@ function classifyQuestion(message: string): 'simple' | 'medium' | 'deep' {
   if (simpleIntent.test(text) || wordCount <= 8) return 'simple'
   return 'medium'
 }
+function isGeminiTurkishRequest(message: string): boolean {
+  return isTurkishMessage(message) ||
+    /\b(kimdir|grubu|grup|hakkinda|uyeleri|sarkilari|albumleri|kuruldu|yayinlandi|kim|hangi|nerede|kac|neden|anlat|acikla)\b/i.test(message)
+}
+
+function localizeGeminiSectionHeadings(answer: string, isTurkish: boolean): string {
+  if (!isTurkish) return answer
+
+  const translations: Record<string, string> = {
+    'executive summary': 'Özet',
+    'key findings': 'Önemli Bulgular',
+    'analysis': 'Analiz',
+    'bottom line': 'Sonuç',
+    'next step': 'Sonraki Adım',
+  }
+
+  return answer.split('\n').map((line) => {
+    const match = line.match(
+      /^(\s{0,3}(?:#{1,6}\s*)?)(\*\*)?(Executive Summary|Key Findings|Analysis|Bottom Line|Next Step)(\*\*)?(\s*(?:[\p{Extended_Pictographic}\uFE0F\u200D]+\s*)*:?\s*)$/iu,
+    )
+    if (!match) return line
+
+    const translated = translations[match[3].toLocaleLowerCase('en-US')]
+    return translated
+      ? match[1] + (match[2] ?? '') + translated + (match[4] ?? '') + match[5]
+      : line
+  }).join('\n')
+}
+
 function isTurkishMessage(message: string): boolean {
   const turkishChars = /[çğıöşüÇĞİÖŞÜ]/
   const turkishWords = /\b(bir|ve|için|nedir|nasıl|mı|mi|mu|mü|bu|şu|ile|merhaba|selam|napıyosun|napıyon|araştır|araştırın|araştırır|grubunu|hakkında|karşılaştır|öner|açıkla|bul|incele|değerlendir)\b/i
@@ -1970,11 +1999,15 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
     try {
       console.log('SheiLa Gemini: streaming request started')
       const geminiTask = (async () => {
+        const geminiTurkishRequest = isGeminiTurkishRequest(message)
+        const geminiLanguageInstruction = geminiTurkishRequest
+          ? "MANDATORY GEMINI LANGUAGE: The user's original message is Turkish. Write the entire answer in fluent Turkish. Use these exact section headings and no English equivalents: Özet, Önemli Bulgular, Analiz, Sonuç, Sonraki Adım. Translate all section headings even when source material is English. Keep proper names and official titles in their original language."
+          : languageInstruction
         const geminiStream = await ai.models.generateContentStream({
           model: 'gemini-4-hydrogen',
           contents: researchPrompt,
           config: {
-            systemInstruction: `${languageInstruction}\n\n${locationInstruction}\n\n${isSimple
+            systemInstruction: `${geminiLanguageInstruction}\n\n${locationInstruction}\n\n${isSimple
               ? "You are SheiLa AI. Answer straightforward questions clearly and concisely in the user's language. Use supplied web sources for factual claims and cite them as [Source N]. Do not force a research-report structure. Never sacrifice factual accuracy for brevity."
               : isMedium
                 ? "You are SheiLa AI, a knowledgeable research assistant. Give moderately detailed, practical explanations in the user's language. Use supplied sources and cite factual claims as [Source N]. Include useful distinctions, examples, or steps when relevant. Do not force a full research report."
@@ -2201,8 +2234,13 @@ if (!groqText.trim()) {
 
     if (usedModel === 'groq/openai/gpt-oss-120b' && !isGroqSimpleGreeting(message)) {
       answerText = enforceResearchFormatting(answerText, isTurkishGroqRequest(message), true)
-    } else if (usedModel === 'gemini-4-hydrogen' && !isSimple && !isMedium) {
-      answerText = enforceResearchFormatting(answerText, isTurkishMessage(message), false)
+    } else if (usedModel === 'gemini-4-hydrogen') {
+      const geminiTurkishRequest = isGeminiTurkishRequest(message)
+      answerText = localizeGeminiSectionHeadings(answerText, geminiTurkishRequest)
+      if (!isSimple && !isMedium) {
+        answerText = enforceResearchFormatting(answerText, geminiTurkishRequest, false)
+        answerText = localizeGeminiSectionHeadings(answerText, geminiTurkishRequest)
+      }
     }
 
     // Let the client apply Gemini-specific presentation without changing Groq answers.
