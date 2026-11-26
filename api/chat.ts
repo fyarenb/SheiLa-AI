@@ -797,9 +797,9 @@ function isOrganizationResearchRequest(message: string): boolean {
 
   const normalized = normalizeSearchText(message)
   const organizationTerms =
-    /\\b(?:group\\w*|grup\\w*|grub\\w*|holding|company|companies|corporation|business|firm|organization|organisation|sirket\\w*|firma\\w*|kurum\\w*|marka)\\b/
+    /\b(?:group\w*|grup\w*|grub\w*|holding|company|companies|corporation|business|firm|organization|organisation|sirket\w*|firma\w*|kurum\w*|marka)\b/
   const researchIntent =
-    /\\b(?:research|investigate|look into|deep dive|about|profile|overview|arastir\\w*|incele\\w*|hakkinda|analiz\\w*|kimdir|nedir)\\b/
+    /\b(?:research|investigate|look into|deep dive|about|profile|overview|arastir\w*|incele\w*|hakkinda|analiz\w*|kimdir|nedir)\b/
 
   return organizationTerms.test(normalized) && researchIntent.test(normalized)
 }
@@ -818,27 +818,114 @@ function getOrganizationSearchSubject(message: string): string {
   return normalized || message.trim().slice(0, 120)
 }
 
-function buildSearchPlan(query: string): TavilySearchPlanItem[] {
+type RequesterCountry = {
+  code: string
+  name: string
+}
+
+const COUNTRY_ALIASES: Array<{ code: string; aliases: string[] }> = [
+  { code: 'TR', aliases: ['turkiye', 'turkey'] },
+  { code: 'IT', aliases: ['italya', 'italy', 'italia'] },
+  { code: 'DE', aliases: ['almanya', 'germany', 'deutschland'] },
+  { code: 'FR', aliases: ['fransa', 'france'] },
+  { code: 'ES', aliases: ['ispanya', 'spain', 'espana'] },
+  { code: 'GB', aliases: ['ingiltere', 'united kingdom', 'great britain', 'britain', 'uk'] },
+  { code: 'US', aliases: ['abd', 'amerika', 'united states', 'usa'] },
+  { code: 'CA', aliases: ['kanada', 'canada'] },
+  { code: 'AU', aliases: ['avustralya', 'australia'] },
+  { code: 'NL', aliases: ['hollanda', 'netherlands'] },
+  { code: 'JP', aliases: ['japonya', 'japan'] },
+  { code: 'KR', aliases: ['guney kore', 'south korea'] },
+  { code: 'IN', aliases: ['hindistan', 'india'] },
+  { code: 'BR', aliases: ['brezilya', 'brazil'] },
+  { code: 'AE', aliases: ['bae', 'birlesik arap emirlikleri', 'united arab emirates', 'uae'] },
+  { code: 'SE', aliases: ['isvec', 'sweden'] },
+  { code: 'NO', aliases: ['norvec', 'norway'] },
+  { code: 'PL', aliases: ['polonya', 'poland'] },
+  { code: 'GR', aliases: ['yunanistan', 'greece'] },
+  { code: 'RU', aliases: ['rusya', 'russia'] },
+]
+
+function getCountryName(countryCode: string): string {
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'region' }).of(countryCode) ?? countryCode
+  } catch {
+    return countryCode
+  }
+}
+
+function getRequesterCountry(
+  req: VercelRequest,
+  message: string,
+): RequesterCountry | null {
+  const normalizedMessage = normalizeSearchText(message)
+  const explicitCountry = COUNTRY_ALIASES.find(({ aliases }) =>
+    aliases.some((alias) => normalizedMessage.includes(alias)),
+  )
+
+  const rawHeader = req.headers['x-vercel-ip-country']
+  const ipCountryCode = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader
+  const countryCode = explicitCountry?.code ?? ipCountryCode?.trim().toUpperCase()
+
+  if (!countryCode || !/^[A-Z]{2}$/.test(countryCode)) return null
+
+  return {
+    code: countryCode,
+    name: getCountryName(countryCode),
+  }
+}
+
+function buildSearchPlan(
+  query: string,
+  requesterCountry: RequesterCountry | null = null,
+): TavilySearchPlanItem[] {
   const normalized = normalizeSearchText(query)
+  const countryName = requesterCountry?.name
 
   if (isMusicGroupResearchRequest(query)) {
+    if (countryName) {
+      return [
+        {
+          query: query.trim() + ' ' + countryName + ' music group band members songs official',
+          topic: 'general',
+        },
+        {
+          query: 'AURA ' + countryName + ' music group members releases official',
+          topic: 'general',
+        },
+        {
+          query: '"AURA" ' + countryName + ' band artist music news',
+          topic: 'news',
+        },
+        {
+          query: query.trim() + ' ' + countryName + ' concerts music releases',
+          topic: 'news',
+        },
+      ]
+    }
+
     return [
-      {
-        query: `${query.trim()} Türkiye müzik grubu kimdir üyeleri şarkıları`,
-        topic: 'general',
-      },
-      {
-        query: '"AURA" "Seventh Door Entertainment" Türk müzik grubu üyeleri',
-        topic: 'general',
-      },
-      {
-        query: '"AURA" Türkiye müzik grubu "YUH!" "PES" "Tuzak"',
-        topic: 'general',
-      },
-      {
-        query: 'AURA Türk müzik grubu haber konser yeni şarkılar',
-        topic: 'news',
-      },
+      { query: query.trim() + ' music group band members official', topic: 'general' },
+      { query: 'AURA music group band members releases', topic: 'general' },
+      { query: 'AURA music group news concerts', topic: 'news' },
+    ]
+  }
+
+  const isOpportunityQuery =
+    normalized.includes('job') ||
+    normalized.includes('career') ||
+    normalized.includes('internship') ||
+    normalized.includes('fellowship') ||
+    normalized.includes('is ilani') ||
+    normalized.includes('staj') ||
+    normalized.includes('kariyer') ||
+    normalized.includes('burs')
+
+  if (isOpportunityQuery && countryName) {
+    return [
+      { query: query.trim() + ' ' + countryName + ' eligibility location', topic: 'general' },
+      { query: query.trim() + ' ' + countryName + ' remote opportunities application', topic: 'general' },
+      { query: query.trim() + ' ' + countryName + ' latest openings', topic: 'news' },
     ]
   }
 
@@ -846,20 +933,22 @@ function buildSearchPlan(query: string): TavilySearchPlanItem[] {
 
   if (isOrganizationResearch) {
     const subject = getOrganizationSearchSubject(query)
-    const exactSubject = subject ? `"${subject}"` : query.trim()
+    const exactSubject = subject ? '"' + subject + '"' : query.trim()
 
     return [
       { query: query.trim(), topic: 'general' },
       {
-        query: `${exactSubject} official website about us company profile`,
+        query: countryName
+          ? exactSubject + ' ' + countryName + ' official website organization profile'
+          : exactSubject + ' official website about us company profile',
         topic: 'general',
       },
       {
-        query: `${exactSubject} services products markets subsidiaries leadership projects`,
+        query: exactSubject + ' services products markets subsidiaries leadership projects',
         topic: 'general',
       },
       {
-        query: `${exactSubject} news announcements partnerships projects acquisitions`,
+        query: exactSubject + ' news announcements partnerships projects acquisitions',
         topic: 'news',
       },
     ]
@@ -876,7 +965,7 @@ function buildSearchPlan(query: string): TavilySearchPlanItem[] {
     normalized.includes('haber')
 
   return [{
-    query: isNewsQuery ? `${query} latest news updates` : query,
+    query: isNewsQuery ? query + ' latest news updates' : query,
     topic: isNewsQuery ? 'news' : 'general',
   }]
 }
@@ -920,7 +1009,6 @@ function canonicalizeResultUrl(value: string): string {
 
 function mergeSearchResults(
   responses: Array<{ plan: TavilySearchPlanItem; data: TavilyResponse }>,
-  isAuraMusicResearch = false,
 ): TavilyResponse {
   const byUrl = new Map<string, TavilyResult>()
 
@@ -928,25 +1016,6 @@ function mergeSearchResults(
     for (const result of data.results ?? []) {
       if (!result.url?.trim()) continue
 
-      if (isAuraMusicResearch) {
-        const identityText = normalizeSearchText(
-          `${result.title ?? ''} ${result.content ?? ''} ${result.url}`,
-        )
-        const targetIdentifiers = [
-          'seventh door entertainment',
-          'aura4world',
-          'asli goztasi',
-          'suzy roumenov',
-          'meri aslan',
-          'esra mutlu',
-          'elemental',
-        ]
-        const identifiesTargetGroup =
-          targetIdentifiers.some((identifier) => identityText.includes(identifier)) ||
-          (identityText.includes('aura') && identityText.includes('yuh'))
-
-        if (!identifiesTargetGroup) continue
-      }
       const key = canonicalizeResultUrl(result.url)
       const existing = byUrl.get(key)
 
@@ -1057,11 +1126,11 @@ async function runTavilySearch(
   }
 }
 
-async function searchWeb(query: string): Promise<TavilyResponse> {
+async function searchWeb(query: string, requesterCountry: RequesterCountry | null = null): Promise<TavilyResponse> {
   const apiKey = process.env.TAVILY_API_KEY
   if (!apiKey) throw new Error('TAVILY_API_KEY is not configured')
 
-  const plan = buildSearchPlan(query)
+  const plan = buildSearchPlan(query, requesterCountry)
   const results = await Promise.allSettled(
     plan.map((item) => runTavilySearch(item, apiKey)),
   )
@@ -1087,7 +1156,7 @@ async function searchWeb(query: string): Promise<TavilyResponse> {
     `SheiLa Tavily: ${successful.length}/${plan.length} search angles succeeded; ${successful.reduce((sum, item) => sum + (item.data.results?.length ?? 0), 0)} raw results`,
   )
 
-  return mergeSearchResults(successful, isMusicGroupResearchRequest(query))
+  return mergeSearchResults(successful)
 }
 
 function formatSearchResults(data: TavilyResponse): string {
@@ -1364,6 +1433,11 @@ export default async function handler(
         ? "MANDATORY LANGUAGE: The user's message is in Turkish. Write the entire answer in fluent, natural Turkish, including every heading, finding title, explanation, list item, and conclusion. Keep proper names and official product names in their original form. Do not answer in English."
         : "MANDATORY LANGUAGE: Write the entire answer in the same language as the user's message. Do not switch languages unless explicitly requested."
 
+      const requesterCountry = getRequesterCountry(req, message)
+      const locationInstruction = requesterCountry
+        ? "REQUESTER COUNTRY CONTEXT: The requester's country is " + requesterCountry.name + " (" + requesterCountry.code + "), inferred from the request IP unless explicitly stated in the message. Consider this country when interpreting ambiguous local names and when researching location-sensitive topics such as artists and music groups, companies, institutions, laws, services, and opportunities. For ambiguous names, prioritize well-supported candidates from or relevant to this country, and clearly distinguish similarly named entities. If the user explicitly names a different country or location, that explicit location takes priority. Do not assume every question is country-specific; preserve global scope when the question is global."
+        : "REQUESTER COUNTRY CONTEXT: No reliable requester-country information is available. Do not guess the user's country. Use any location stated explicitly in the question; otherwise preserve the appropriate global scope."
+
       const isCasual = isCasualMessage(message)
       const responseLevel = isCasual ? 'casual' : classifyQuestion(message)
       const isSimple = responseLevel === 'simple'
@@ -1376,7 +1450,7 @@ export default async function handler(
       if (!isCasual) {
         const searchStart = Date.now()
 
-        const search = await searchWeb(message)
+        const search = await searchWeb(message, requesterCountry)
         console.log(
           `SheiLa search strategy: ${isOrganizationResearchRequest(message) ? 'named-organization multi-angle' : 'standard'}`,
         )
@@ -1479,7 +1553,7 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
           model: 'gemini-4-hydrogen',
           contents: researchPrompt,
           config: {
-            systemInstruction: `${languageInstruction}\n\n${isSimple
+            systemInstruction: `${languageInstruction}\n\n${locationInstruction}\n\n${isSimple
               ? "You are SheiLa AI. Answer straightforward questions clearly and concisely in the user's language. Use supplied web sources for factual claims and cite them as [Source N]. Do not force a research-report structure. Never sacrifice factual accuracy for brevity."
               : isMedium
                 ? "You are SheiLa AI, a knowledgeable research assistant. Give moderately detailed, practical explanations in the user's language. Use supplied sources and cite factual claims as [Source N]. Include useful distinctions, examples, or steps when relevant. Do not force a full research report."
@@ -1580,7 +1654,7 @@ GROQ OUTPUT RULES:
   messages: [
     {
       role: 'system',
-      content: `${languageInstruction}\n\n${isSimple
+      content: `${languageInstruction}\n\n${locationInstruction}\n\n${isSimple
         ? "You are SheiLa AI. Answer clearly and concisely in the user's language. Use supplied sources and citations when relevant."
         : isMedium
           ? "You are SheiLa AI. Give practical, moderately detailed answers in the user's language. Cite source-based factual claims."
