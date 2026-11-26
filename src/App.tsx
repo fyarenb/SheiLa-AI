@@ -385,41 +385,104 @@ function renderSheilaContent(
   )
 }
 
-function getLocalGreetingReply(message: string): string | null {
-  const normalized = message
+function normalizeGreetingText(message: string): string {
+  return message
     .trim()
     .toLocaleLowerCase('tr-TR')
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\\u0300-\\u036f]/g, '')
     .replace(/ı/g, 'i')
-    .replace(/[!?.,;:]+$/g, '')
-    .replace(/\s+/g, ' ')
+    .replace(/[^a-z\\s]/g, ' ')
+    .replace(/\\s+/g, ' ')
+    .trim()
+}
 
-  const turkishGreetings = new Set([
-    'merhaba',
+function greetingEditDistance(left: string, right: string): number {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index)
+
+  for (let i = 1; i <= left.length; i += 1) {
+    let diagonal = previous[0]
+    previous[0] = i
+
+    for (let j = 1; j <= right.length; j += 1) {
+      const above = previous[j]
+      previous[j] = Math.min(
+        previous[j] + 1,
+        previous[j - 1] + 1,
+        diagonal + (left[i - 1] === right[j - 1] ? 0 : 1),
+      )
+      diagonal = above
+    }
+  }
+
+  return previous[right.length]
+}
+
+function isTurkishGreetingInput(message: string): boolean {
+  const normalized = normalizeGreetingText(message)
+  if (!normalized) return false
+
+  const words = normalized.split(' ').filter(Boolean)
+  if (words.length > 3) return false
+
+  const allowedFollowUps = new Set(['ya', 'ben', 'hey', 'naber', 'nasilsin'])
+  if (words.length > 1 && !words.slice(1).every((word) => allowedFollowUps.has(word))) {
+    // Also allow split syllables such as "merha ba".
+    const compact = words.join('').replace(/(.)\\1+/g, '$1')
+    if (compact.length < 5 || compact.length > 9 || greetingEditDistance(compact, 'merhaba') > 2) {
+      return false
+    }
+  }
+
+  const compact = words.join('').replace(/(.)\\1+/g, '$1')
+  const firstWord = words[0].replace(/(.)\\1+/g, '$1')
+  const commonForms = new Set([
+    'mrb',
+    'mrhb',
+    'mrhba',
+    'slm',
     'selam',
     'selamlar',
     'hey',
     'gunaydin',
-    'iyi gunler',
-    'iyi aksamlar',
-    'iyi geceler',
-    'merhaba ben',
-    'selam ben',
+    'iyigunler',
+    'iyiaksamlar',
+    'iyigeceler',
   ])
+
+  if (commonForms.has(normalized) || commonForms.has(compact)) return true
+  if (compact === 'merhaba' || compact === 'merhabalar') return true
+
+  return (
+    compact.length >= 5 &&
+    compact.length <= 9 &&
+    greetingEditDistance(compact, 'merhaba') <= 2
+  ) || (
+    (firstWord === 'merhaba' ||
+      (firstWord.length >= 5 && firstWord.length <= 9 &&
+        greetingEditDistance(firstWord, 'merhaba') <= 2)) &&
+    words.slice(1).every((word) => allowedFollowUps.has(word))
+  )
+}
+
+function getLocalGreetingReply(message: string): string | null {
+  const normalized = normalizeGreetingText(message)
+  const englishNormalized = normalized.replace(/(.)\\1+/g, '$1')
+
   const englishGreetings = new Set([
     'hi',
     'hello',
-    'hey there',
-    'good morning',
-    'good afternoon',
-    'good evening',
+    'hey',
+    'heythere',
+    'goodmorning',
+    'goodafternoon',
+    'goodevening',
   ])
 
-  if (turkishGreetings.has(normalized)) {
+  if (isTurkishGreetingInput(message)) {
     return 'Merhaba, ben SheiLa AI. Nasıl yardımcı olabilirim?'
   }
-  if (englishGreetings.has(normalized)) {
+  if (englishGreetings.has(englishNormalized.replace(/\\s/g, ''))) {
     return 'Hello, I’m SheiLa AI. How can I help you?'
   }
   if (['nasilsin', 'naber', 'ne haber', 'ne var ne yok'].includes(normalized)) {
@@ -689,7 +752,10 @@ function App() {
                   {item.role === 'user' ? (
                     'You'
                   ) : (
-                    <SheilaWordmark />
+                    <span className="assistant-brand-name">
+                      <SheilaWordmark />
+                      <span className="ai-label">AI</span>
+                    </span>
                   )}
                 </span>
 
@@ -708,7 +774,10 @@ function App() {
             {loading && (
               <div className="chat-message sheila">
                 <span className="chat-role">
-                  <SheilaWordmark />
+                  <span className="assistant-brand-name">
+                    <SheilaWordmark />
+                    <span className="ai-label">AI</span>
+                  </span>
                 </span>
 
                 <div className="chat-message-content loading-content">
