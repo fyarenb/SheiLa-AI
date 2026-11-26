@@ -1526,3 +1526,56 @@ html, body {
     margin-top: 7px !important;
   }
 }
+
+
+/* Compact research answers: do not preserve blank source newlines as visible gaps. */
+.chat-message.sheila .chat-message-content,
+.sheila-answer-text {
+  white-space: normal;
+}
+
+.sheila-answer-text {
+  line-height: 1.45;
+}
+
+.sheila-answer-text > :first-child {
+  margin-top: 0 !important;
+}
+
+.sheila-answer-text p {
+  margin-bottom: 3px !important;
+}
+
+.sheila-answer-text h1,
+.sheila-answer-text h2 {
+  margin-top: 11px !important;
+  margin-bottom: 4px !important;
+}
+
+.sheila-answer-text h3 {
+  margin-top: 7px !important;
+  margin-bottom: 3px !important;
+}
+
+.sheila-answer-text ol,
+.sheila-answer-text ul {
+  margin-top: 2px !important;
+  margin-bottom: 4px !important;
+}
+
+.sheila-answer-text ol > li + li,
+.sheila-answer-text ul > li + li {
+  margin-top: 2px !important;
+}
+
+.sheila-answer-text li > p + p {
+  margin-top: 2px !important;
+}
+
+.sources-section {
+  margin-top: 8px !important;
+}
+
+.next-step-section {
+  margin-top: 6px !important;
+}
