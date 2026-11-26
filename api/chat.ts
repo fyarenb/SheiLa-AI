@@ -895,11 +895,11 @@ function mergeSearchResults(
     }
 
     const count = domainCounts.get(hostname) ?? 0
-    if (count >= 3) continue
+    if (count >= 1) continue
 
     selected.push(result)
     domainCounts.set(hostname, count + 1)
-    if (selected.length >= 14) break
+    if (selected.length >= 5) break
   }
 
   return { results: selected }
@@ -1024,14 +1024,32 @@ ${result.content ?? 'No content available'}
 }
 
 function getSources(data: TavilyResponse) {
+  const seenDomains = new Set<string>()
+
   return (data.results ?? [])
-    .map((result, index) => ({
-      id: index + 1,
-      title: result.title?.trim() || 'Source',
-      url: result.url?.trim() ?? '',
-      publishedDate: result.published_date ?? null,
-    }))
-    .filter((source) => source.url.length > 0)
+    .map((result, index) => {
+      let hostname = ''
+      try {
+        hostname = new URL(result.url ?? '').hostname.replace(/^www\./, '').toLowerCase()
+      } catch {
+        hostname = (result.url ?? '').toLowerCase()
+      }
+
+      return {
+        id: index + 1,
+        title: result.title?.trim() || 'Source',
+        url: result.url?.trim() ?? '',
+        publishedDate: result.published_date ?? null,
+        hostname,
+      }
+    })
+    .filter((source) => {
+      if (!source.url || !source.hostname || seenDomains.has(source.hostname)) return false
+      seenDomains.add(source.hostname)
+      return true
+    })
+    .slice(0, 5)
+    .map(({ hostname, ...source }) => source)
 }
 
 function isGreetingMessage(message: string): boolean {
