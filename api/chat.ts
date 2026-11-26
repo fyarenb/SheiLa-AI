@@ -1540,8 +1540,8 @@ function formatGroqAnswer(
     (group) => group.match(/\[Source\s+\d+\]/gi)?.join(', ') ?? group,
   )
 
-  // Render numbered Groq findings as bold inline labels instead of Markdown lists.
-  // This removes the browser's default ordered-list indentation without changing global CSS.
+  // Turn Groq's numbered finding entries into unnumbered, bold title-case labels.
+  // Split inline entries into separate paragraphs and use a colon after each title.
   const outputLines = formatted.split('\n')
   const findingsHeading = isTurkishGroqRequest(message) ? 'Önemli Bulgular' : 'Key Findings'
   const analysisHeading = isTurkishGroqRequest(message) ? 'Analiz' : 'Analysis'
@@ -1554,12 +1554,17 @@ function formatGroqAnswer(
   )
 
   if (findingsStart >= 0 && analysisStart > findingsStart) {
-    for (let i = findingsStart + 1; i < analysisStart; i += 1) {
-      const item = outputLines[i].match(/^\s{0,3}([1-3])\.\s+(.+)$/)
-      if (!item) continue
-      outputLines[i] = '**' + item[1] + '.** ' + item[2].trimStart()
-    }
-    formatted = outputLines.join('\n')
+    const findingsText = outputLines.slice(findingsStart + 1, analysisStart).join('\n')
+    const unnumberedFindings = findingsText.replace(
+      /(^|[ \t])(?:#{1,3}[ \t]*)?([1-3])\.[ \t]+((?:\p{Extended_Pictographic}\uFE0F?[ \t]*)?)([^\n–—:]{2,70}?)(?:[ \t]*[–—-][ \t]*|[ \t]*:[ \t]*|(?=\n|$))/gmu,
+      (_whole, boundary: string, _number: string, emoji: string, rawTitle: string) =>
+        boundary + '\n\n' + emoji + '**' + rawTitle.trim() + ':** ',
+    ).trim()
+    formatted = [
+      ...outputLines.slice(0, findingsStart + 1),
+      unnumberedFindings,
+      ...outputLines.slice(analysisStart),
+    ].join('\n')
   }
 
   // Remove redundant parenthetical restatements such as "(stylized AURA)".
@@ -2044,9 +2049,9 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
         'Answer as an evidence-based research brief. A short factual question such as Manifest kimdir is still a research question and must receive all five sections.',
         'Use all five sections in this exact order, translated into the user language: Executive Summary, Key Findings, Analysis, Bottom Line, Next Step.',
         'For Turkish, use exactly: Özet, Önemli Bulgular, Analiz, Sonuç, Sonraki Adım.',
-        'Under Key Findings, provide exactly three distinct numbered findings whenever the supplied sources support at least three. Do not stop at one finding when two or three other distinct supported findings are available. If the sources genuinely support only one or two, include every supported finding and do not invent the rest.',
+        'Under Key Findings, provide up to three distinct evidence-supported findings. Do not number them. Give each finding its own separate paragraph with a concise, title-case heading in bold followed by a colon, then the explanation in regular text (example: **Kuruluş ve Üyeler:** ...). Capitalize all significant words in the heading. Never use a dash instead of the colon. If sources support three findings, include all three; do not invent unsupported findings.',
         'Bold important names, member names, organizations, dates, years, titles, and key facts.',
-        'Link Manifest to its official Turkish website: https://manifestgirlband.com/tr/.',
+        'When identifying Manifest, make the first mention of Manifest a link to its official Turkish website (https://manifestgirlband.com/tr/). Do not print the raw URL and do not add labels such as “Resmi sitesi” or “Resmi web sitesi”; the linked name is sufficient.',
         'Cite factual claims with matching [Source N] markers. Do not write publisher names or labels such as Source 1 or Source 2 in prose. Verified sources are appended separately by the application.',
         'Include useful content under every section. Do not omit sections because the question is short. State evidence limitations in the relevant section.',
         'Keep the response relevant, concise, and free of generic filler.',
