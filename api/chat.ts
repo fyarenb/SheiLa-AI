@@ -1336,18 +1336,25 @@ function formatGroqAnswer(
     normalizeSearchText(value).replace(/[^a-z0-9]+/g, '')
 
   const escapeRegex = (value: string) =>
-    value.replace(/[.*+?^$()|[\]\\]/g, '\\function normalizeGreetingText(message: string): string {')
+    Array.from(value).map((character) =>
+      '\\^$.*+?()[]{}|'.includes(character) ? '\\' + character : character,
+    ).join('')
+
+  const isSafeAlias = (value: string) =>
+    value.trim().length >= 2 &&
+    value.trim().length <= 60 &&
+    /^[\p{L}\p{N}& .'-]+$/u.test(value.trim())
 
   const sourceAliases = sources.map((source) => {
     const aliases: string[] = []
     try {
       const host = new URL(source.url).hostname.replace(/^www\./i, '').split('.')[0]
-      if (host) aliases.push(host)
+      if (host && isSafeAlias(host)) aliases.push(host)
     } catch {
       // Keep title-based alias matching available.
     }
     const titleHead = source.title.split(/\s+[|:–—-]\s+/)[0]
-    if (titleHead) aliases.push(titleHead)
+    if (titleHead && isSafeAlias(titleHead)) aliases.push(titleHead)
     return { source, aliases: [...new Set(aliases)] }
   })
 
