@@ -36,6 +36,11 @@ CORE AREAS:
 - Freelance opportunities
 
 ==================================================
+MUSIC GROUP AND ARTIST RESEARCH
+
+When a request refers to a music group, band, singer, songs, albums, members, or concerts, treat the subject as a musical act rather than a corporate group. For the Turkish query "Aura Grubu", prioritize the Turkish music group named AURA and search specifically for its music, members, releases, and official channels. Do not return unrelated companies or holdings with the same name. If multiple Turkish music acts share the name, distinguish them by their lineup, era, music, and official sources instead of combining their facts.
+
+==================================================
 NAMED ORGANIZATION AND COMPANY RESEARCH
 ==================================================
 
@@ -769,12 +774,23 @@ function normalizeSearchText(value: string): string {
     .replace(/ı/g, 'i')
 }
 
+function isMusicGroupResearchRequest(message: string): boolean {
+  const normalized = normalizeSearchText(message)
+  const refersToAura = /\\baura\\b/.test(normalized)
+  const musicContext =
+    /\\b(?:grup\\w*|grub\\w*|muzik\\w*|sarki\\w*|album\\w*|konser\\w*|uye\\w*|sanatci\\w*|kiz grubu)\\b/.test(normalized)
+
+  return refersToAura && musicContext
+}
+
 function isOrganizationResearchRequest(message: string): boolean {
+  if (isMusicGroupResearchRequest(message)) return false
+
   const normalized = normalizeSearchText(message)
   const organizationTerms =
-    /\b(?:group\w*|grup\w*|grub\w*|holding|company|companies|corporation|business|firm|organization|organisation|sirket\w*|firma\w*|kurum\w*|marka)\b/
+    /\\b(?:group\\w*|grup\\w*|grub\\w*|holding|company|companies|corporation|business|firm|organization|organisation|sirket\\w*|firma\\w*|kurum\\w*|marka)\\b/
   const researchIntent =
-    /\b(?:research|investigate|look into|deep dive|about|profile|overview|arastir\w*|incele\w*|hakkinda|analiz\w*|kimdir|nedir)\b/
+    /\\b(?:research|investigate|look into|deep dive|about|profile|overview|arastir\\w*|incele\\w*|hakkinda|analiz\\w*|kimdir|nedir)\\b/
 
   return organizationTerms.test(normalized) && researchIntent.test(normalized)
 }
@@ -795,6 +811,28 @@ function getOrganizationSearchSubject(message: string): string {
 
 function buildSearchPlan(query: string): TavilySearchPlanItem[] {
   const normalized = normalizeSearchText(query)
+
+  if (isMusicGroupResearchRequest(query)) {
+    return [
+      {
+        query: `${query.trim()} Türkiye müzik grubu kimdir üyeleri şarkıları`,
+        topic: 'general',
+      },
+      {
+        query: '"AURA" "Seventh Door Entertainment" Türk müzik grubu üyeleri',
+        topic: 'general',
+      },
+      {
+        query: '"AURA" Türkiye müzik grubu "YUH!" "PES" "Tuzak"',
+        topic: 'general',
+      },
+      {
+        query: 'AURA Türk müzik grubu haber konser yeni şarkılar',
+        topic: 'news',
+      },
+    ]
+  }
+
   const isOrganizationResearch = isOrganizationResearchRequest(query)
 
   if (isOrganizationResearch) {
