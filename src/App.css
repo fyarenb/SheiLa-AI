@@ -1669,3 +1669,13 @@ html, body {
 .sheila-answer-text ol > li + li {
   margin-top: 1em !important;
 }
+
+
+/* Keep the extra spacing between numbered items, but not after the final item. */
+.sheila-answer-text ol {
+  margin-bottom: 0 !important;
+}
+
+.sheila-answer-text ol > li:last-child {
+  margin-bottom: 0 !important;
+}
