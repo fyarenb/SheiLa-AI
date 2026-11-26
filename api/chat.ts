@@ -331,7 +331,8 @@ If the user writes in Turkish:
 - Önemli Bulgular
 - Analiz
 - Sonuç
-- Next Step (English) / Sonraki Adım (Turkish)
+- Next Step (English)
+- Sonraki Adım (Turkish)
 
 Never use English section headings in a Turkish response. Use "Sonraki Adım" as the Turkish follow-up heading.
 Keep responses easy for the user to scan and understand.
