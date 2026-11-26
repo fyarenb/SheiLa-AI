@@ -1055,71 +1055,81 @@ ${result.content ?? 'No content available'}
 }
 
 function enforceResearchFormatting(answer: string, isTurkish: boolean): string {
-  let output = answer
+  const lines = answer.replace(/\r\n/g, '\n').split('\n')
 
-  const labels = isTurkish
+  const sectionHeadings = isTurkish
     ? [
-        { pattern: /^(?:Executive Summary|Özet)$/i, heading: '## Özet 🌐' },
-        { pattern: /^(?:Key Findings|Önemli Bulgular)$/i, heading: '## Önemli Bulgular 🔎' },
-        { pattern: /^(?:Analysis|Analiz)$/i, heading: '## Analiz 🧪' },
-        { pattern: /^(?:Bottom Line|Sonuç)$/i, heading: '## Sonuç 🎯' },
-        { pattern: /^(?:Next Step|Sonraki Adım)$/i, heading: '## Sonraki Adım' },
+        { names: ['Executive Summary', 'Özet'], text: 'Özet', emoji: '🌐' },
+        { names: ['Key Findings', 'Önemli Bulgular'], text: 'Önemli Bulgular', emoji: '🔎' },
+        { names: ['Analysis', 'Analiz'], text: 'Analiz', emoji: '🧪' },
+        { names: ['Bottom Line', 'Sonuç'], text: 'Sonuç', emoji: '🎯' },
+        { names: ['Next Step', 'Sonraki Adım'], text: 'Sonraki Adım', emoji: '' },
       ]
     : [
-        { pattern: /^(?:Executive Summary|Özet)$/i, heading: '## Executive Summary 🌐' },
-        { pattern: /^(?:Key Findings|Önemli Bulgular)$/i, heading: '## Key Findings 🔎' },
-        { pattern: /^(?:Analysis|Analiz)$/i, heading: '## Analysis 🧪' },
-        { pattern: /^(?:Bottom Line|Sonuç)$/i, heading: '## Bottom Line 🎯' },
-        { pattern: /^(?:Next Step|Sonraki Adım)$/i, heading: '## Next Step' },
+        { names: ['Executive Summary', 'Özet'], text: 'Executive Summary', emoji: '🌐' },
+        { names: ['Key Findings', 'Önemli Bulgular'], text: 'Key Findings', emoji: '🔎' },
+        { names: ['Analysis', 'Analiz'], text: 'Analysis', emoji: '🧪' },
+        { names: ['Bottom Line', 'Sonuç'], text: 'Bottom Line', emoji: '🎯' },
+        { names: ['Next Step', 'Sonraki Adım'], text: 'Next Step', emoji: '' },
       ]
 
-  output = output.replace(
-    /^(\s{0,3})(?:#{1,3}\s*)?(?:\*\*)?([^#\n*]+?)(?:\*\*)?\s*$/gim,
-    (line, indent: string, rawHeading: string) => {
-      const normalized = rawHeading
-        .trim()
-        .replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\uFE0F\u200D]/gu, '')
-        .replace(/[：:]$/, '')
-        .trim()
-      const match = labels.find((item) => item.pattern.test(normalized))
-      return match ? indent + match.heading : line
-    },
-  )
+  const cleanEmoji = (value: string) =>
+    value.replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\uFE0F\u200D]/gu, '').trim()
 
-  const findingsHeading = isTurkish ? 'Önemli Bulgular' : 'Key Findings'
-  const analysisHeading = isTurkish ? 'Analiz' : 'Analysis'
-  const findingsIndex = output.search(
-    new RegExp('^#{1,3}\\s*' + findingsHeading + '\\b.*$', 'im'),
-  )
+  for (let i = 0; i < lines.length; i += 1) {
+    const match = lines[i].match(/^(\s{0,3})(#{1,3})\s*(.*?)\s*$/)
+    if (!match) continue
 
-  if (findingsIndex >= 0) {
-    const afterHeading = output.indexOf('\n', findingsIndex)
-    const analysisIndex = output.search(
-      new RegExp('^#{1,3}\\s*' + analysisHeading + '\\b.*$', 'im'),
+    const headingText = cleanEmoji(match[3].replace(/\*\*/g, '').replace(/[：:]$/, ''))
+    const section = sectionHeadings.find((item) =>
+      item.names.some((name) => name.toLocaleLowerCase('tr-TR') === headingText.toLocaleLowerCase('tr-TR')),
     )
 
-    if (afterHeading >= 0 && analysisIndex > afterHeading) {
-      const before = output.slice(0, afterHeading + 1)
-      const findings = output.slice(afterHeading + 1, analysisIndex)
-      const after = output.slice(analysisIndex)
-      const findingEmojis = ['🧭', '📈', '🛡️']
-
-      const formattedFindings = findings.replace(
-        /^(\s{0,3})(?:#{1,3}\s*)?([1-3])\.\s*(.*)$/gm,
-        (line, indent: string, number: string, rest: string) => {
-          const emoji = findingEmojis[Number(number) - 1]
-          if (!emoji) return line
-          const title = rest.trim()
-          return indent + number + '. ' + emoji + (title ? ' ' + title : '')
-        },
-      )
-
-      output = before + formattedFindings + after
+    if (section) {
+      lines[i] = match[1] + '## ' + section.text + (section.emoji ? ' ' + section.emoji : '')
     }
   }
 
-  return output
+  const findingsLabel = isTurkish ? 'Önemli Bulgular' : 'Key Findings'
+  const analysisLabel = isTurkish ? 'Analiz' : 'Analysis'
+  const headingName = (line: string) =>
+    cleanEmoji(line.replace(/^\s{0,3}#{1,3}\s*/, '').replace(/\*\*/g, '').trim())
+
+  const findingsIndex = lines.findIndex((line) => headingName(line).startsWith(findingsLabel))
+  let analysisIndex = lines.findIndex((line, index) =>
+    index > findingsIndex && headingName(line).startsWith(analysisLabel),
+  )
+
+  if (findingsIndex >= 0 && analysisIndex > findingsIndex) {
+    // Join a standalone "1." marker with its first paragraph to avoid detached,
+    // oversized list items in the rendered report.
+    for (let i = findingsIndex + 1; i < analysisIndex; i += 1) {
+      const marker = lines[i].match(/^(\s{0,3})([1-3])\.\s*$/)
+      if (!marker) continue
+
+      let next = i + 1
+      while (next < analysisIndex && !lines[next].trim()) next += 1
+      if (next >= analysisIndex || /^#{1,3}\s/.test(lines[next])) continue
+
+      lines[i] = marker[1] + marker[2] + '. ' + lines[next].trim()
+      lines.splice(i + 1, next - i)
+      analysisIndex -= next - i
+    }
+
+    const findingEmojis = ['🧭', '📈', '🛡️']
+    for (let i = findingsIndex + 1; i < analysisIndex; i += 1) {
+      const marker = lines[i].match(/^(\s{0,3})([1-3])\.\s*(.*)$/)
+      if (!marker) continue
+
+      const emoji = findingEmojis[Number(marker[2]) - 1]
+      const rest = cleanEmoji(marker[3])
+      lines[i] = marker[1] + marker[2] + '. ' + emoji + (rest ? ' ' + rest : '')
+    }
+  }
+
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n')
 }
+
 
 function getSources(data: TavilyResponse) {
   const seenDomains = new Set<string>()
@@ -1439,7 +1449,7 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
 
       if (streamedByGemini) {
         console.error('SheiLa Gemini stream stopped after partial output; skipping fallback to avoid mixing responses.')
-        if (sources.length > 0) {
+        if (!isGreetingMessage(message) && sources.length > 0) {
           res.write(
             `\\n\\n### Sources\\n\\n${sources
               .map((source) => `${source.id}. [${source.title}](${source.url})`)
@@ -1593,7 +1603,7 @@ if (!groqText.trim()) {
 
     
 
-       if (sources.length > 0) {
+       if (!isGreetingMessage(message) && sources.length > 0) {
       res.write(
         `\n\n### Sources\n\n${sources
           .map(
