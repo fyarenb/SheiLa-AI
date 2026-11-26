@@ -1327,6 +1327,11 @@ function getSources(data: TavilyResponse) {
     .map(({ hostname, ...source }) => source)
 }
 
+function isTurkishGroqRequest(message: string): boolean {
+  return isTurkishMessage(message) ||
+    /\b(grubu|grup|bilgi|anlat|hakkinda|kimdir|nedir|hangi|uyeleri|sarkilari|albumleri|kuruldu|yayinlandi)\b/i.test(message)
+}
+
 function needsTurkishGroqLocalization(answer: string): boolean {
   const prose = answer
     .replace(/^#{1,6}\s.*$/gm, ' ')
@@ -1470,10 +1475,10 @@ function formatGroqAnswer(
     return text
   }).join('')
 
-  // Keep multiple favicon citations visually distinct.
+  // Separate every adjacent favicon citation with commas.
   formatted = formatted.replace(
-    /(\[Source\s+\d+\])\s*(?:(?:,|;|and|ve|&)\s*)?(\[Source\s+\d+\])/gi,
-    '$1, $2',
+    /(?:\[Source\s+\d+\])(?:\s*(?:(?:,|;|and|ve|&)\s*)?\[Source\s+\d+\])+/gi,
+    (group) => group.match(/\[Source\s+\d+\]/gi)?.join(', ') ?? group,
   )
 
   // Remove redundant parenthetical restatements such as "(stylized AURA)".
@@ -1932,7 +1937,7 @@ GROQ OUTPUT RULES:
   messages: [
     {
       role: 'system',
-      content: `${languageInstruction}\n\n${locationInstruction}\n\nOUTPUT LANGUAGE LOCK: ${isTurkishMessage(message)
+      content: `${languageInstruction}\n\n${locationInstruction}\n\nOUTPUT LANGUAGE LOCK: ${isTurkishGroqRequest(message)
         ? 'The original user request is in Turkish. Write every sentence, explanation, bullet, heading, and follow-up question in fluent Turkish. Translate information from English sources into Turkish. Use exactly these research headings when needed: Özet, Önemli Bulgular, Analiz, Sonuç, Sonraki Adım. Keep only proper names, official names, and original work titles in their original language.'
         : 'Determine the response language from the original user message only. Ignore the language of web results and source titles. Write all narrative text, headings, bullets, and follow-up questions in that same language. Keep proper names and official titles in their original form.'}\n\n${isSimple
         ? "You are SheiLa AI. Answer clearly and concisely in the user's language. Use supplied sources and citations when relevant."
@@ -1963,7 +1968,7 @@ GROQ OUTPUT RULES:
          throw new Error('Groq returned an empty response')
  }
 
-        if (isTurkishMessage(message) && needsTurkishGroqLocalization(groqText)) {
+        if (isTurkishGroqRequest(message) && needsTurkishGroqLocalization(groqText)) {
           console.log('SheiLa Groq: applying Turkish language correction')
           try {
             const localizedResponse = await groq.chat.completions.create({
