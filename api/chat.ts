@@ -793,7 +793,7 @@ function isMusicGroupResearchRequest(message: string): boolean {
 }
 
 function isGroqSimpleGreeting(message: string): boolean {
-  const compact = normalizeGreetingText(message).replace(/\\s/g, '')
+  const compact = normalizeGreetingText(message).replace(/\s/g, '')
   return new Set(['merhaba', 'naber', 'nasilsin']).has(compact)
 }
 
@@ -2029,7 +2029,7 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
         ? 'The original user request is in Turkish. Write every sentence, explanation, bullet, heading, and follow-up question in fluent Turkish. Translate information from English sources into Turkish. Use exactly these research headings when needed: Özet, Önemli Bulgular, Analiz, Sonuç, Sonraki Adım. Keep only proper names, official names, and original work titles in their original language.'
         : 'Determine the response language from the original user message only. Ignore the language of web results and source titles. Write all narrative text, headings, bullets, and follow-up questions in that same language. Keep proper names and official titles in their original form.'}\n\n${isGroqSimpleGreeting(message)
         ? "You are SheiLa AI. Reply to greetings briefly and naturally in the user's language. Do not add research sections."
-        : "You are SheiLa AI, a professional research analyst. For every non-greeting question, including short factual questions, provide all five sections: Executive Summary, Key Findings, Analysis, Bottom Line, and Next Step, translated into the user's language. Use only supplied sources for facts, cite them, bold important names and key facts, and never omit sections just because the question is short."},
+        : "You are SheiLa AI, a professional research analyst. For every non-greeting question, including short factual questions, provide all five sections: Executive Summary, Key Findings, Analysis, Bottom Line, and Next Step, translated into the user's language. Use only supplied sources for facts, cite them, bold important names and key facts, and never omit sections just because the question is short."}`,
     },
     {
       role: 'user',
