@@ -799,20 +799,20 @@ function buildSearchPlan(query: string): TavilySearchPlanItem[] {
 
   if (isOrganizationResearch) {
     const subject = getOrganizationSearchSubject(query)
-    const exactSubject = subject ? \`"\${subject}"\` : query.trim()
+    const exactSubject = subject ? `"${subject}"` : query.trim()
 
     return [
       { query: query.trim(), topic: 'general' },
       {
-        query: \`\${exactSubject} official website about us company profile\`,
+        query: `${exactSubject} official website about us company profile`,
         topic: 'general',
       },
       {
-        query: \`\${exactSubject} services products markets subsidiaries leadership projects\`,
+        query: `${exactSubject} services products markets subsidiaries leadership projects`,
         topic: 'general',
       },
       {
-        query: \`\${exactSubject} news announcements partnerships projects acquisitions\`,
+        query: `${exactSubject} news announcements partnerships projects acquisitions`,
         topic: 'news',
       },
     ]
@@ -829,7 +829,7 @@ function buildSearchPlan(query: string): TavilySearchPlanItem[] {
     normalized.includes('haber')
 
   return [{
-    query: isNewsQuery ? \`\${query} latest news updates\` : query,
+    query: isNewsQuery ? `${query} latest news updates` : query,
     topic: isNewsQuery ? 'news' : 'general',
   }]
 }
@@ -934,23 +934,23 @@ async function runTavilySearch(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: \`Bearer \${apiKey}\`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(searchPayload),
       signal: controller.signal,
     })
 
-    console.log(\`SheiLa Tavily search (\${plan.topic}): \${Date.now() - start}ms\`)
+    console.log(`SheiLa Tavily search (${plan.topic}): ${Date.now() - start}ms`)
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(\`Tavily search failed: \${response.status} \${errorText}\`)
+      throw new Error(`Tavily search failed: ${response.status} ${errorText}`)
     }
 
     return response.json() as Promise<TavilyResponse>
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(\`Tavily search timeout for: \${plan.query}\`)
+      throw new Error(`Tavily search timeout for: ${plan.query}`)
     }
     throw error
   } finally {
@@ -981,11 +981,11 @@ async function searchWeb(query: string): Promise<TavilyResponse> {
 
   const failedCount = results.length - successful.length
   if (failedCount > 0) {
-    console.warn(\`SheiLa Tavily: \${failedCount} of \${results.length} search angles failed\`)
+    console.warn(`SheiLa Tavily: ${failedCount} of ${results.length} search angles failed`)
   }
 
   console.log(
-    \`SheiLa Tavily: \${successful.length}/\${plan.length} search angles succeeded; \${successful.reduce((sum, item) => sum + (item.data.results?.length ?? 0), 0)} raw results\`,
+    `SheiLa Tavily: ${successful.length}/${plan.length} search angles succeeded; ${successful.reduce((sum, item) => sum + (item.data.results?.length ?? 0), 0)} raw results`,
   )
 
   return mergeSearchResults(successful)
@@ -1001,24 +1001,24 @@ function formatSearchResults(data: TavilyResponse): string {
   return results
     .map((result, index) => {
       const relevance = typeof result.score === 'number'
-        ? \`\${Math.round(result.score * 100)} / 100\`
+        ? `${Math.round(result.score * 100)} / 100`
         : 'Not provided'
       const matchedQueries = result.matchedQueries?.length
         ? result.matchedQueries.join(' | ')
         : 'Primary search'
 
-      return \`
-SOURCE \${index + 1}
+      return `
+SOURCE ${index + 1}
 
-Title: \${result.title ?? 'Untitled'}
-URL: \${result.url ?? 'Unavailable'}
-Published: \${result.published_date ?? 'Unknown'}
-Tavily relevance score: \${relevance}
-Matched search angles: \${matchedQueries}
+Title: ${result.title ?? 'Untitled'}
+URL: ${result.url ?? 'Unavailable'}
+Published: ${result.published_date ?? 'Unknown'}
+Tavily relevance score: ${relevance}
+Matched search angles: ${matchedQueries}
 
 Relevant page content:
-\${result.content ?? 'No content available'}
-\`
+${result.content ?? 'No content available'}
+`
     })
     .join('\n-------------------------\n')
 }
