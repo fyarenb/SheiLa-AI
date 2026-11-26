@@ -791,7 +791,7 @@ function App() {
                   {messages.some(
                    (m) =>
                  /[çğıöşüÇĞİÖŞÜ]/.test(m.content) ||
-                 /\b(bir|ve|için|nedir|nasıl|mı|mi|mu|mü|bu|şu|ile|merhaba|selam|napıyosun|napıyon|ne|neler|kim|nerede|ara|bul)\b/i.test(
+                 /\b(bir|ve|için|nedir|nasıl|mı|mi|mu|mü|bu|şu|ile|merhaba|selam|napıyosun|napıyon|ne|neler|kim|kimdir|grubu|hakkında|hakkinda|nerede|hangi|neden|kaç|kac|ara|araştır|arastir|açıkla|acikla|bul)\b/i.test(
                           m.content,
                         ),
                     )
