@@ -385,6 +385,42 @@ function renderSheilaContent(
   )
 }
 
+function getLocalGreetingReply(message: string): string | null {
+  const normalized = message
+    .trim()
+    .toLocaleLowerCase('tr-TR')
+    .normalize('NFD')
+    .replace(/[\\u0300-\\u036f]/g, '')
+    .replace(/ı/g, 'i')
+    .replace(/[!?.,;:]+$/g, '')
+    .replace(/\\s+/g, ' ')
+
+  const turkishGreetings = new Set([
+    'merhaba',
+    'selam',
+    'selamlar',
+    'hey',
+    'gunaydin',
+    'iyi gunler',
+    'iyi aksamlar',
+    'iyi geceler',
+    'merhaba ben',
+    'selam ben',
+  ])
+  const englishGreetings = new Set(['hi', 'hello', 'hey there', 'good morning', 'good afternoon', 'good evening'])
+
+  if (turkishGreetings.has(normalized)) {
+    return 'Merhaba, ben SheiLa AI. Nasıl yardımcı olabilirim?'
+  }
+  if (englishGreetings.has(normalized)) {
+    return 'Hello, I’m SheiLa AI. How can I help you?'
+  }
+  if (['nasilsin', 'naber', 'ne haber', 'ne var ne yok'].includes(normalized)) {
+    return 'İyiyim, teşekkür ederim! Sana nasıl yardımcı olabilirim?'
+  }
+  return null
+}
+
 function App() {
   const [message, setMessage] = useState('')
   const [chatStarted, setChatStarted] = useState(false)
@@ -425,6 +461,22 @@ function App() {
     ])
     setMessage('')
     setLoading(true)
+
+    // Keep greetings entirely local: no research request and no source cards.
+    const localGreeting = getLocalGreetingReply(trimmedMessage)
+    if (localGreeting) {
+      setMessages((current) => [
+        ...current,
+        {
+          role: 'sheila',
+          content: localGreeting,
+          streaming: false,
+          isNextStepResponse: false,
+        },
+      ])
+      setLoading(false)
+      return
+    }
 
     try {
       const res = await fetch('/api/chat', {
