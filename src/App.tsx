@@ -749,7 +749,7 @@ function App() {
                   {item.role === 'user' ? (
                     'You'
                   ) : (
-                    <span className="assistant-brand-name">
+                    <span className="assistant-brand-name" aria-label="SheiLa AI">
                       <SheilaWordmark />
                       <span className="ai-label">AI</span>
                     </span>
@@ -771,7 +771,7 @@ function App() {
             {loading && (
               <div className="chat-message sheila">
                 <span className="chat-role">
-                  <span className="assistant-brand-name">
+                  <span className="assistant-brand-name" aria-label="SheiLa AI">
                     <SheilaWordmark />
                     <span className="ai-label">AI</span>
                   </span>
