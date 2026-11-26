@@ -1213,14 +1213,14 @@ function enforceResearchFormatting(answer: string, isTurkish: boolean): string {
         { names: ['Key Findings', 'Önemli Bulgular'], text: 'Önemli Bulgular', emoji: '🔎' },
         { names: ['Analysis', 'Analiz'], text: 'Analiz', emoji: '🧪' },
         { names: ['Bottom Line', 'Sonuç'], text: 'Sonuç', emoji: '🎯' },
-        { names: ['Next Step', 'Sonraki Adım'], text: 'Sonraki Adım', emoji: '' },
+        { names: ['Next Step', 'Sonraki Adım'], text: 'Sonraki Adım', emoji: '🧭' },
       ]
     : [
         { names: ['Executive Summary', 'Özet'], text: 'Executive Summary', emoji: '🌐' },
         { names: ['Key Findings', 'Önemli Bulgular'], text: 'Key Findings', emoji: '🔎' },
         { names: ['Analysis', 'Analiz'], text: 'Analysis', emoji: '🧪' },
         { names: ['Bottom Line', 'Sonuç'], text: 'Bottom Line', emoji: '🎯' },
-        { names: ['Next Step', 'Sonraki Adım'], text: 'Next Step', emoji: '' },
+        { names: ['Next Step', 'Sonraki Adım'], text: 'Next Step', emoji: '🧭' },
       ]
 
   const cleanEmoji = (value: string) =>
