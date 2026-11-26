@@ -1652,3 +1652,14 @@ html, body {
     margin-top: 10px !important;
   }
 }
+
+
+/* Two-line separation only at primary section transitions. */
+.sheila-answer-text h2:not(:first-child) {
+  margin-top: 2em !important;
+}
+
+/* The follow-up section is rendered outside the Markdown answer wrapper. */
+.next-step-section {
+  margin-top: 2em !important;
+}
