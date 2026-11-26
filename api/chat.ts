@@ -2044,7 +2044,7 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
         'Answer as an evidence-based research brief. A short factual question such as Manifest kimdir is still a research question and must receive all five sections.',
         'Use all five sections in this exact order, translated into the user language: Executive Summary, Key Findings, Analysis, Bottom Line, Next Step.',
         'For Turkish, use exactly: Özet, Önemli Bulgular, Analiz, Sonuç, Sonraki Adım.',
-        'Under Key Findings, provide up to three distinct numbered findings supported by the sources. Never invent findings to reach three.',
+        'Under Key Findings, provide exactly three distinct numbered findings whenever the supplied sources support at least three. Do not stop at one finding when two or three other distinct supported findings are available. If the sources genuinely support only one or two, include every supported finding and do not invent the rest.',
         'Bold important names, member names, organizations, dates, years, titles, and key facts.',
         'Link Manifest to its official Turkish website: https://manifestgirlband.com/tr/.',
         'Cite factual claims with matching [Source N] markers. Do not write publisher names or labels such as Source 1 or Source 2 in prose. Verified sources are appended separately by the application.',
