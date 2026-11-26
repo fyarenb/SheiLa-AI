@@ -792,6 +792,11 @@ function isMusicGroupResearchRequest(message: string): boolean {
   return refersToAura && musicTerms.some((term) => normalized.includes(term))
 }
 
+function isGroqSimpleGreeting(message: string): boolean {
+  const compact = normalizeGreetingText(message).replace(/\\s/g, '')
+  return new Set(['merhaba', 'naber', 'nasilsin']).has(compact)
+}
+
 function isManifestIdentityRequest(message: string): boolean {
   const normalized = normalizeSearchText(message)
   return /\bmanifest\b/.test(normalized) &&
@@ -1545,8 +1550,14 @@ function formatGroqAnswer(
 
   if (isManifestIdentityRequest(message)) {
     formatted = formatted
-      .replace(/(?<![\\p{L}*])(?:Esin Bahat|Hilal Yelekçi|Lidya Pınar|Mina Solak|Sueda Uluca|Zeynep Sude Oktay)(?![\\p{L}*])/giu, (match) => '**' + match + '**')
-      .replace(/(?<![\\p{L}*])(?:Big5 Türkiye|Hypers New Media|Hypers Music)(?![\\p{L}*])/giu, (match) => '**' + match + '**')
+      .replace(
+        /(?<![\p{L}*])(?:Esin Bahat|Hilal Yelekçi|Lidya Pınar|Mina Solak|Sueda Uluca|Zeynep Sude Oktay)(?![\p{L}*])/giu,
+        (match) => '**' + match + '**',
+      )
+      .replace(
+        /(?<![\p{L}*])(?:Big5 Türkiye|Hypers New Media|Hypers Music)(?![\p{L}*])/giu,
+        (match) => '**' + match + '**',
+      )
   }
 
   if (isMusicGroupResearchRequest(message)) {
@@ -1574,14 +1585,22 @@ function formatGroqAnswer(
 
 function linkManifestOfficialWebsite(answer: string, message: string): string {
   if (!isManifestIdentityRequest(message)) return answer
+
   const url = 'https://manifestgirlband.com/tr/'
   const officialLink = '[**Manifest**](' + url + ')'
-  let output = answer.replace(/\\*\\*Manifest\\*\\*/gi, officialLink)
-  const protectedPattern = /(\\x60{3}[\\s\\S]*?\\x60{3}|\\[[^\\]]+\\]\\([^)]+\\)|https?:\\/\\/[^\\s)]+)/g
+  let output = answer.replace(/\*\*Manifest\*\*/gi, officialLink)
+
+  const protectedPattern = /(\x60{3}[\s\S]*?\x60{3}|\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s)]+)/g
   output = output.split(protectedPattern).map((part) => {
-    if (part.startsWith('\\x60\\x60\\x60') || /^\\[[^\\]]+\\]\\([^)]+\\)$/.test(part) || /^https?:\\/\\//i.test(part)) return part
-    return part.replace(/(?<![\\p{L}\\p{N}*\\[])Manifest(?![\\p{L}\\p{N}*\\]])/giu, officialLink)
+    if (
+      part.startsWith('\x60\x60\x60') ||
+      /^\[[^\]]+\]\([^)]+\)$/.test(part) ||
+      /^https?:\/\//i.test(part)
+    ) return part
+
+    return part.replace(/\bManifest\b/gi, officialLink)
   }).join('')
+
   return output
 }
 
@@ -1969,7 +1988,7 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
       
       try {
   
-  const isGroqGreeting = isGreetingMessage(message)
+  const isGroqGreeting = isGroqSimpleGreeting(message)
   const groqPrompt = isGroqGreeting
     ? [
         'USER MESSAGE:',
@@ -2008,7 +2027,7 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
       role: 'system',
       content: `${languageInstruction}\n\n${locationInstruction}\n\nOUTPUT LANGUAGE LOCK: ${isTurkishGroqRequest(message)
         ? 'The original user request is in Turkish. Write every sentence, explanation, bullet, heading, and follow-up question in fluent Turkish. Translate information from English sources into Turkish. Use exactly these research headings when needed: Özet, Önemli Bulgular, Analiz, Sonuç, Sonraki Adım. Keep only proper names, official names, and original work titles in their original language.'
-        : 'Determine the response language from the original user message only. Ignore the language of web results and source titles. Write all narrative text, headings, bullets, and follow-up questions in that same language. Keep proper names and official titles in their original form.'}\n\n${isGreetingMessage(message)
+        : 'Determine the response language from the original user message only. Ignore the language of web results and source titles. Write all narrative text, headings, bullets, and follow-up questions in that same language. Keep proper names and official titles in their original form.'}\n\n${isGroqSimpleGreeting(message)
         ? "You are SheiLa AI. Reply to greetings briefly and naturally in the user's language. Do not add research sections."
         : "You are SheiLa AI, a professional research analyst. For every non-greeting question, including short factual questions, provide all five sections: Executive Summary, Key Findings, Analysis, Bottom Line, and Next Step, translated into the user's language. Use only supplied sources for facts, cite them, bold important names and key facts, and never omit sections just because the question is short."},
     },
@@ -2017,7 +2036,7 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
       content: `${groqPrompt}\n\nFINAL LANGUAGE CHECK: The language of the original user message—not the language of the web results—controls the language of the entire answer. Keep the wording concise and remove redundant phrases that add no information.`,
     },
   ],
-  max_completion_tokens: isGreetingMessage(message) ? 500 : 2600,
+  max_completion_tokens: isGroqSimpleGreeting(message) ? 500 : 2600,
   reasoning_effort: 'low',
   stream: true,
 })
@@ -2134,7 +2153,7 @@ if (!groqText.trim()) {
 
     let answerText = response.text ?? ''
 
-    if (usedModel === 'groq/openai/gpt-oss-120b' && !isGreetingMessage(message)) {
+    if (usedModel === 'groq/openai/gpt-oss-120b' && !isGroqSimpleGreeting(message)) {
       answerText = enforceResearchFormatting(answerText, isTurkishMessage(message), true)
     } else if (usedModel === 'gemini-4-hydrogen' && !isSimple && !isMedium) {
       answerText = enforceResearchFormatting(answerText, isTurkishMessage(message), false)
