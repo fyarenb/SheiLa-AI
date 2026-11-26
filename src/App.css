@@ -1719,6 +1719,11 @@ html, body {
 }
 
 
+/* Groq-only: add one line of space after the SheiLa AI attribution. */
+.groq-answer {
+  margin-top: 1em;
+}
+
 /* Groq-only: emphasize important names, dates and quoted titles in black. */
 .groq-answer strong {
   color: #111111 !important;
