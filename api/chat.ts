@@ -1458,7 +1458,13 @@ function formatGroqAnswer(
   }
 
   const citation = (source: (typeof sources)[number]) => '[Source ' + source.id + ']'
-  let formatted = answer
+  let formatted = answer.replace(
+    /[\[【](\d+)\s*†\s*L\d+(?:\s*-\s*L\d+)?[\]】]/giu,
+    (whole, rawNumber: string) => {
+      const source = sources.find((item) => item.id === Number(rawNumber))
+      return source ? citation(source) : whole
+    },
+  )
 
   // Convert direct links to retrieved publishers into favicon citation markers.
   formatted = formatted.replace(
@@ -1533,6 +1539,28 @@ function formatGroqAnswer(
     /(?:\[Source\s+\d+\])(?:\s*(?:(?:,|;|and|ve|&)\s*)?\[Source\s+\d+\])+/gi,
     (group) => group.match(/\[Source\s+\d+\]/gi)?.join(', ') ?? group,
   )
+
+  // Render numbered Groq findings as bold inline labels instead of Markdown lists.
+  // This removes the browser's default ordered-list indentation without changing global CSS.
+  const outputLines = formatted.split('\n')
+  const findingsHeading = isTurkishGroqRequest(message) ? 'Önemli Bulgular' : 'Key Findings'
+  const analysisHeading = isTurkishGroqRequest(message) ? 'Analiz' : 'Analysis'
+  const findingsStart = outputLines.findIndex((line) =>
+    line.replace(/^#{1,3}\s*/, '').trim().startsWith(findingsHeading),
+  )
+  const analysisStart = outputLines.findIndex((line, index) =>
+    index > findingsStart &&
+    line.replace(/^#{1,3}\s*/, '').trim().startsWith(analysisHeading),
+  )
+
+  if (findingsStart >= 0 && analysisStart > findingsStart) {
+    for (let i = findingsStart + 1; i < analysisStart; i += 1) {
+      const item = outputLines[i].match(/^\s{0,3}([1-3])\.\s+(.+)$/)
+      if (!item) continue
+      outputLines[i] = '**' + item[1] + '.** ' + item[2].trimStart()
+    }
+    formatted = outputLines.join('\n')
+  }
 
   // Remove redundant parenthetical restatements such as "(stylized AURA)".
   formatted = formatted
@@ -2162,7 +2190,7 @@ if (!groqText.trim()) {
     let answerText = response.text ?? ''
 
     if (usedModel === 'groq/openai/gpt-oss-120b' && !isGroqSimpleGreeting(message)) {
-      answerText = enforceResearchFormatting(answerText, isTurkishMessage(message), true)
+      answerText = enforceResearchFormatting(answerText, isTurkishGroqRequest(message), true)
     } else if (usedModel === 'gemini-4-hydrogen' && !isSimple && !isMedium) {
       answerText = enforceResearchFormatting(answerText, isTurkishMessage(message), false)
     }
