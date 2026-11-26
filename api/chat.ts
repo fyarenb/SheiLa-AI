@@ -1308,29 +1308,112 @@ function getSources(data: TavilyResponse) {
     .map(({ hostname, ...source }) => source)
 }
 
-function isGreetingMessage(message: string): boolean {
-  const text = message
+function normalizeGreetingText(message: string): string {
+  return message
     .trim()
     .toLocaleLowerCase('tr-TR')
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z\s]/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/[\\u0300-\\u036f]/g, '')
+    .replace(/ı/g, 'i')
+    .replace(/[^a-z\\s]/g, ' ')
+    .replace(/\\s+/g, ' ')
     .trim()
+}
 
-  const greetings = [
-    'merhaba',
+function greetingEditDistance(left: string, right: string): number {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index)
+
+  for (let i = 1; i <= left.length; i += 1) {
+    let diagonal = previous[0]
+    previous[0] = i
+
+    for (let j = 1; j <= right.length; j += 1) {
+      const above = previous[j]
+      previous[j] = Math.min(
+        previous[j] + 1,
+        previous[j - 1] + 1,
+        diagonal + (left[i - 1] === right[j - 1] ? 0 : 1),
+      )
+      diagonal = above
+    }
+  }
+
+  return previous[right.length]
+}
+
+function isTurkishGreetingInput(message: string): boolean {
+  const normalized = normalizeGreetingText(message)
+  if (!normalized) return false
+
+  const words = normalized.split(' ').filter(Boolean)
+  if (words.length > 3) return false
+
+  const allowedFollowUps = new Set(['ya', 'ben', 'hey', 'naber', 'nasilsin'])
+  if (words.length > 1 && !words.slice(1).every((word) => allowedFollowUps.has(word))) {
+    // Also allow split syllables such as "merha ba".
+    const compact = words.join('').replace(/(.)\\1+/g, '$1')
+    if (compact.length < 5 || compact.length > 9 || greetingEditDistance(compact, 'merhaba') > 2) {
+      return false
+    }
+  }
+
+  const compact = words.join('').replace(/(.)\\1+/g, '$1')
+  const firstWord = words[0].replace(/(.)\\1+/g, '$1')
+  const commonForms = new Set([
+    'mrb',
+    'mrhb',
+    'mrhba',
+    'slm',
     'selam',
     'selamlar',
     'hey',
+    'gunaydin',
+    'iyigunler',
+    'iyiaksamlar',
+    'iyigeceler',
+  ])
+
+  if (commonForms.has(normalized) || commonForms.has(compact)) return true
+  if (compact === 'merhaba' || compact === 'merhabalar') return true
+
+  return (
+    compact.length >= 5 &&
+    compact.length <= 9 &&
+    greetingEditDistance(compact, 'merhaba') <= 2
+  ) || (
+    (firstWord === 'merhaba' ||
+      (firstWord.length >= 5 && firstWord.length <= 9 &&
+        greetingEditDistance(firstWord, 'merhaba') <= 2)) &&
+    words.slice(1).every((word) => allowedFollowUps.has(word))
+  )
+}
+
+function isGreetingMessage(message: string): boolean {
+  const text = normalizeGreetingText(message)
+  const compact = text.replace(/\\s/g, '').replace(/(.)\\1+/g, '$1')
+  const words = text.split(' ').filter(Boolean)
+  if (words.length > 5) return false
+
+  if (isTurkishGreetingInput(message)) return true
+
+  const greetings = new Set([
+    'hey',
     'hi',
     'hello',
-    'gunaydin',
-    'iyi aksamlar',
-    'iyi geceler',
-    'iyi gunler',
-  ]
-  const casualQuestions = [
+    'good morning',
+    'good afternoon',
+    'good evening',
+  ])
+  const compactEnglishGreetings = new Set([
+    'hey',
+    'hi',
+    'hello',
+    'heythere',
+    'goodmorning',
+    'goodafternoon',
+    'goodevening',
+  ])
+  const casualQuestions = new Set([
     'nasilsin',
     'naber',
     'ne haber',
@@ -1338,18 +1421,11 @@ function isGreetingMessage(message: string): boolean {
     'how are you',
     'whats up',
     'what is up',
-  ]
+  ])
 
-  const words = text.split(' ').filter(Boolean)
-  if (words.length > 5) return false
-
-  const isGreeting = greetings.includes(text) ||
-    (['merhaba', 'selam', 'selamlar'].includes(words[0]) &&
-      words.slice(1).every((word) => ['ya', 'ben', 'hey'].includes(word)))
-
-  const isCasualQuestion = casualQuestions.includes(text)
-
-  return isGreeting || isCasualQuestion
+  return greetings.has(text) ||
+    compactEnglishGreetings.has(compact) ||
+    casualQuestions.has(text)
 }
 
 function isCasualMessage(message: string): boolean {
@@ -1422,21 +1498,23 @@ export default async function handler(
     }
 
     if (isGreetingMessage(message)) {
-      const normalizedMessage = message
-        .trim()
-        .toLocaleLowerCase('tr-TR')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-      const isHowAreYou = /^(nasilsin|naber|ne haber|ne var ne yok)$/.test(normalizedMessage)
-      const greetingReply = isTurkishMessage(message)
-        ? isHowAreYou
-          ? 'İyiyim, teşekkür ederim! Sana nasıl yardımcı olabilirim?'
-          : 'Merhaba, ben SheiLa AI. Nasıl yardımcı olabilirim?'
-        : /^(how are you|whats up|what is up)$/.test(normalizedMessage)
+      const normalizedMessage = normalizeGreetingText(message)
+      const compactMessage = normalizedMessage.replace(/\\s/g, '').replace(/(.)\\1+/g, '$1')
+      const isEnglishGreeting = new Set([
+        'hi', 'hello', 'hey', 'heythere',
+        'goodmorning', 'goodafternoon', 'goodevening',
+        'howareyou', 'whatsup', 'whatisup',
+      ]).has(compactMessage)
+      const isHowAreYou = ['nasilsin', 'naber', 'ne haber', 'ne var ne yok'].includes(normalizedMessage)
+      const greetingReply = isEnglishGreeting
+        ? compactMessage === 'howareyou' || compactMessage === 'whatsup' || compactMessage === 'whatisup'
           ? "I'm doing well, thank you! How can I help you?"
           : 'Hello! I’m SheiLa AI. How can I help you?'
+        : isHowAreYou
+          ? 'İyiyim, teşekkür ederim! Sana nasıl yardımcı olabilirim?'
+          : 'Merhaba, ben SheiLa AI. Nasıl yardımcı olabilirim?'
 
-      console.log('SheiLa: local casual response (no AI or web search)')
+      console.log('SheiLa AI: local greeting response (no AI or web search)')
       res.setHeader('Content-Type', 'text/plain; charset=utf-8')
       res.setHeader('Cache-Control', 'no-cache, no-transform')
       return res.status(200).send(greetingReply)
