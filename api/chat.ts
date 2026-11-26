@@ -1512,6 +1512,7 @@ function formatGroqAnswer(
     for (const { source, aliases } of sourceAliases) {
       for (const alias of aliases) {
         if (normalizeLabel(alias).length < 4) continue
+        if (isManifestIdentityRequest(message) && normalizeLabel(alias) === 'manifest') continue
         const pattern = new RegExp(
           '(?<![\\p{L}\\p{N}])' + escapeRegex(alias.trim()) + '(?![\\p{L}\\p{N}])',
           'giu',
@@ -1546,7 +1547,15 @@ function formatGroqAnswer(
     formatted = formatted
       .replace(
         /(?<![\p{L}*])(?:Esin Bahat|Hilal Yelekçi|Lidya Pınar|Mina Solak|Sueda Uluca|Zeynep Sude Oktay)(?![\p{L}*])/giu,
-        '**  if (isMusicGroupResearchRequest(message)) {
+        (match) => '**' + match + '**',
+      )
+      .replace(
+        /(?<![\p{L}*])(?:Big5 Türkiye|Hypers New Media)(?![\p{L}*])/giu,
+        (match) => '**' + match + '**',
+      )
+  }
+
+  if (isMusicGroupResearchRequest(message)) {
     // Bold the complete Turkish finding labels, including their colons.
 **',
       )
@@ -1933,181 +1942,9 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
           model: 'gemini-4-hydrogen',
           contents: researchPrompt,
           config: {
-            systemInstruction: `${languageInstruction}\n\n${locationInstruction}\n\n${isSimple
-              ? "You are SheiLa AI. Answer straightforward questions clearly and concisely in the user's language. Use supplied web sources for factual claims and cite them as [Source N]. Do not force a research-report structure. Never sacrifice factual accuracy for brevity."
-              : isMedium
-                ? "You are SheiLa AI, a knowledgeable research assistant. Give moderately detailed, practical explanations in the user's language. Use supplied sources and cite factual claims as [Source N]. Include useful distinctions, examples, or steps when relevant. Do not force a full research report."
-                : SYSTEM_PROMPT}`,
-            maxOutputTokens: isSimple ? 900 : isMedium ? 1400 : 2200,
-            thinkingConfig: {
-              thinkingLevel: ThinkingLevel.LOW,
-            },
-          },
-        })
-
-        let text = ''
-        for await (const chunk of geminiStream) {
-          text += chunk.text ?? ''
-        }
-        if (!text.trim()) throw new Error('Gemini returned an empty streamed response')
-        return text
-      })()
-
-      let timeoutId: ReturnType<typeof setTimeout> | undefined
-      const timeout = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(
-          () => reject(new Error('Gemini exceeded the 45-second response limit')),
-          45_000,
-        )
-      })
-
-      try {
-        streamedGeminiText = await Promise.race([geminiTask, timeout])
-      } finally {
-        if (timeoutId) clearTimeout(timeoutId)
-      }
-
-      streamedByGemini = true
-      response = { text: streamedGeminiText }
-      console.log(`SheiLa Gemini: response completed within 45s (${Date.now() - geminiStart}ms)`)
-      usedModel = 'gemini-4-hydrogen'
-      lastError = null    } catch (error) {
-      lastError = error
-
-      console.error('SheiLa Gemini 4 Hydrogen streaming failed:', error)
-
-      if (streamedByGemini) {
-        console.error('SheiLa Gemini stream stopped after partial output; skipping fallback to avoid mixing responses.')
-        if (!isGreetingMessage(message) && sources.length > 0) {
-          res.write(
-            `\\n\\n### Sources\\n\\n${sources
-              .map((source) => `${source.id}. [${source.title}](${source.url})`)
-              .join('\\n')}`,
-          )
-        }
-        res.end()
-        return
-      }
-
-      console.log('SheiLa: trying Groq fallback')
-      
-      try {
-  
-  const isGroqManifestProfile = isManifestIdentityRequest(message)
-
-  if (isGroqManifestProfile) {
-    try {
-      const officialSearch = await searchWeb(
-        'site:manifestgirlband.com/tr Manifest hikayemiz üyeler resmi',
-        requesterCountry,
-      )
-      const officialResult = officialSearch.results?.find((result) => {
-        try {
-          return new URL(result.url ?? '').hostname.replace(/^www\./i, '') === 'manifestgirlband.com'
-        } catch {
-          return false
-        }
-      })
-      if (officialResult) {
-        const combinedResults = [
-          officialResult,
-          ...searchResults.filter((result) => {
-            try {
-              return new URL(result.url ?? '').hostname.replace(/^www\./i, '') !== 'manifestgirlband.com'
-            } catch {
-              return true
-            }
-          }),
-        ].slice(0, 5)
-        searchResults = combinedResults
-        sources = getSources({ results: combinedResults })
-        searchContext = formatSearchResults({ results: combinedResults })
-      }
-    } catch (officialSearchError) {
-      console.warn('SheiLa Groq: official Manifest website search failed; keeping existing sources.', officialSearchError)
-    }
-  }
-
-  const isGroqGreeting = isGreetingMessage(message)
-  const groqPrompt = isGroqGreeting
-    ? [
-        'USER MESSAGE:',
-        '',
-        message,
-        '',
-        'TASK:',
-        'Reply briefly and naturally in the user language. Do not research or cite sources.',
-      ].join('\n')
-    : [
-        'USER QUESTION:',
-        '',
-        message,
-        '',
-        'AVAILABLE WEB SOURCES:',
-        '',
-        searchContext,
-        '',
-        'TASK:',
-        'Answer as a focused, evidence-based research brief. A short factual query such as Manifest kimdir must still receive all five main sections.',
-        'Use all five main sections in this exact order, translated into the user language: Executive Summary, Key Findings, Analysis, Bottom Line, Next Step.',
-        'For Turkish, use exactly: Özet, Önemli Bulgular, Analiz, Sonuç, Sonraki Adım.',
-        'Under Key Findings, provide up to three distinct numbered findings. Use three only when the sources support three distinct findings; never invent details.',
-        'Use Markdown bold for important names, members, organizations, dates, years, titles, and key facts.',
-        'Cite source-dependent claims with matching [Source N] markers. Never write publisher names or Source 1 / Source 2 in prose. Do not add a separate Sources section; the backend appends verified sources.',
-        'Do not omit any of the five sections just because the original question is short. Explain evidence limitations in the relevant section.',
-        'Keep the answer focused, useful, and concise. Do not add generic filler.',
-      ].join('\n')   ? `
-${researchPrompt}
-
-GROQ OUTPUT RULES:
-- Answer directly in 2–4 concise sentences.
-- Use [Source N] citations for factual claims supported by supplied sources; citations must be the only source attribution in the text.
-- Never write publisher or source names such as Hürriyet, Source 1, or Source 2 in prose or parentheses.
-- Use Markdown bold for important names, people, organizations, key facts, dates, and titles in quotation marks.
-- Do not use research-report headings or a Next Step question.
-- Reply in the user's language.
-`
-   : isMedium
-     ? `
-${researchPrompt}
-
-GROQ OUTPUT RULES:
-- Give a moderately detailed answer, normally 2–4 short paragraphs or concise bullets.
-- Include examples, distinctions, or practical steps when they improve the answer.
-- Use [Source N] citations for factual claims supported by supplied sources; citations must be the only source attribution in the text.
-- Never write publisher or source names such as Hürriyet, Source 1, or Source 2 in prose or parentheses.
-- Use Markdown bold for important names, people, organizations, key facts, dates, and titles in quotation marks.
-- Do not force research-report headings or a Next Step question.
-- Reply in the user's language.
-`
-     : `
-${researchPrompt}
-
-GROQ OUTPUT RULES:
-- Follow the complete research brief and formatting requirements.
-- Provide exactly 3 Key Findings, each with exactly 2 complete sentences.
-- Cite factual claims immediately before sentence-ending punctuation using [Source N]; citations must be the only source attribution in the text.
-- Never write publisher or source names such as Hürriyet, Source 1, or Source 2 in prose or parentheses.
-- Use Markdown bold for important names, people, organizations, key facts, dates, and titles in quotation marks.
-- Include the equivalent of Executive Summary, Key Findings, Analysis, Bottom Line, and one concise Next Step question, translated into the user's language. For Turkish requests, use exactly: Özet, Önemli Bulgular, Analiz, Sonuç, Sonraki Adım. Never leave English section headings in a Turkish answer.
-- Remove redundant parenthetical restatements such as “stylized AURA”; do not pad the answer with wording that adds no useful information.
-- Do not invent facts or citations; reply entirely in the user's language.
-`
-
- console.log(
-    `SheiLa Groq prompt chars: ${groqPrompt.length}`,
-  )  
-  
-  const groqStream = await groq.chat.completions.create({
-  model: 'openai/gpt-oss-120b',
-  messages: [
-    {
-      role: 'system',
-      content: `${languageInstruction}\n\n${locationInstruction}\n\nOUTPUT LANGUAGE LOCK: ${isTurkishGroqRequest(message)
-        ? 'The original user request is in Turkish. Write every sentence, explanation, bullet, heading, and follow-up question in fluent Turkish. Translate information from English sources into Turkish. Use exactly these research headings when needed: Özet, Önemli Bulgular, Analiz, Sonuç, Sonraki Adım. Keep only proper names, official names, and original work titles in their original language.'
-        : 'Determine the response language from the original user message only. Ignore the language of web results and source titles. Write all narrative text, headings, bullets, and follow-up questions in that same language. Keep proper names and official titles in their original form.'}\n\n${isSimple
-        ? "You are SheiLa AI. Reply to a greeting briefly and naturally in the user's language. Do not add research sections."
-        : "You are SheiLa AI, a professional research analyst. For every non-greeting question, including short factual questions, provide all five sections: Executive Summary, Key Findings, Analysis, Bottom Line, and Next Step, translated into the user's language. Use only supplied sources for factual claims, cite them, bold important names and facts, and do not omit sections because the question is short."}`,
+            systemInstruction: `${languageInstruction}\n\n${locationInstruction}\n\n${isGroqGreeting
+        ? "You are SheiLa AI. Reply to a greeting briefly and naturally in the user language. Do not add research sections."
+        : "You are SheiLa AI, a professional research analyst. For every non-greeting question, including short factual questions, provide all five sections: Executive Summary, Key Findings, Analysis, Bottom Line, and Next Step, translated into the user language. Use only supplied sources for factual claims, cite them, bold important names and facts, and do not omit sections because the question is short."}`,
     },
     {
       role: 'user',
