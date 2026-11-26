@@ -390,10 +390,10 @@ function getLocalGreetingReply(message: string): string | null {
     .trim()
     .toLocaleLowerCase('tr-TR')
     .normalize('NFD')
-    .replace(/[\\u0300-\\u036f]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/ı/g, 'i')
     .replace(/[!?.,;:]+$/g, '')
-    .replace(/\\s+/g, ' ')
+    .replace(/\s+/g, ' ')
 
   const turkishGreetings = new Set([
     'merhaba',
@@ -407,7 +407,14 @@ function getLocalGreetingReply(message: string): string | null {
     'merhaba ben',
     'selam ben',
   ])
-  const englishGreetings = new Set(['hi', 'hello', 'hey there', 'good morning', 'good afternoon', 'good evening'])
+  const englishGreetings = new Set([
+    'hi',
+    'hello',
+    'hey there',
+    'good morning',
+    'good afternoon',
+    'good evening',
+  ])
 
   if (turkishGreetings.has(normalized)) {
     return 'Merhaba, ben SheiLa AI. Nasıl yardımcı olabilirim?'
