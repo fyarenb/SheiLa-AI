@@ -1327,91 +1327,6 @@ function getSources(data: TavilyResponse) {
     .map(({ hostname, ...source }) => source)
 }
 
-function formatGroqAnswer(
-  answer: string,
-  sources: ReturnType<typeof getSources>,
-  message: string,
-): string {
-  const normalizeLabel = (value: string) =>
-    normalizeSearchText(value).replace(/[^a-z0-9]+/g, '')
-
-  const findSource = (rawLabel: string) => {
-    const label = rawLabel.trim().replace(/^["'“”‘’[\]]+|["'“”‘’[\]]+$/g, '')
-    const number = label.match(/^(?:source|kaynak)\s*#?\s*(\d+)$/i)
-    if (number) return sources.find((source) => source.id === Number(number[1]))
-
-    const key = normalizeLabel(label)
-    if (!key) return undefined
-
-    return sources.find((source) => {
-      const title = normalizeLabel(source.title)
-      let host = ''
-      try {
-        host = normalizeLabel(new URL(source.url).hostname.replace(/^www\./, ''))
-      } catch {
-        host = ''
-      }
-
-      return (
-        key === title ||
-        (key.length >= 4 && title.includes(key)) ||
-        (title.length >= 5 && key.includes(title)) ||
-        (key.length >= 4 && host.includes(key))
-      )
-    })
-  }
-
-  const renderSourceGroup = (group: string): string | null => {
-    const labels = group
-      .split(/\s*(?:,|;|&|\band\b|\bve\b)\s*/i)
-      .map((part) => part.trim())
-      .filter(Boolean)
-
-    if (!labels.length) return null
-    const matched = labels.map(findSource)
-    const unique = [...new Map(
-      matched.filter((source): source is NonNullable<typeof source> =>
-        Boolean(source),
-      ).map((source) => [source.id, source]),
-    ).values()]
-
-    if (!unique.length) return null
-    return unique.map((source) => '[' + source.id + '](' + source.url + ')').join(' ')
-  }
-
-  let formatted = answer
-
-  // Convert parenthetical source labels (e.g. Source 1, Hürriyet) to favicon citations.
-  formatted = formatted.replace(/\(([^()\n]{2,180})\)/g, (whole, group: string) => {
-    const hasSourceLabel = /\b(?:source|kaynak)\s*#?\s*\d+/i.test(group)
-    const citations = renderSourceGroup(group)
-    return citations ? ' ' + citations : hasSourceLabel ? '' : whole
-  })
-
-  // Convert any remaining bare Source 1 / Source1 / Kaynak 2 labels to favicon citations.
-  formatted = formatted.replace(/\b(?:Source|Kaynak)\s*#?\s*(\d+)\b/gi, (whole, number: string) => {
-    const source = sources.find((item) => item.id === Number(number))
-    return source ? '[' + source.id + '](' + source.url + ')' : ''
-  })
-
-  // Bold quoted work/song/album titles while preserving the quote marks.
-  formatted = formatted
-    .replace(/[“"]([^”"\n]{1,100})[”"]/g, (whole, value: string) =>
-      whole.startsWith('“') ? '“**' + value + '**”' : '"**' + value + '**"',
-    )
-    .replace(/‘([^’\n]{1,100})’/g, '‘**$1**’')
-
-  // Emphasize the Turkish AURA group's member names when that is the subject.
-  if (isMusicGroupResearchRequest(message)) {
-    formatted = formatted.replace(
-      /(^|[^\p{L}])((?:Aslı|Esra|Meri|Suzy)(?:\s*\((?:Su|Ateş|Toprak|Hava)\))?)(?=$|[^\p{L}])/giu,
-      '$1**$2**',
-    )
-  }
-
-  return formatted
-}
-
 function normalizeGreetingText(message: string): string {
   return message
     .trim()
@@ -1803,8 +1718,6 @@ ${researchPrompt}
 GROQ OUTPUT RULES:
 - Answer directly in 2–4 concise sentences.
 - Use [Source N] citations for factual claims supported by supplied sources.
-- Never write source/publisher names such as "Hürriyet" or "Source 1" into the answer; use citations only.
-- Use Markdown bold for important people, organizations, places, dates, key facts, and quoted work/song/album titles. Keep emphasis selective.
 - Do not use research-report headings or a Next Step question.
 - Reply in the user's language.
 `
@@ -1816,8 +1729,6 @@ GROQ OUTPUT RULES:
 - Give a moderately detailed answer, normally 2–4 short paragraphs or concise bullets.
 - Include examples, distinctions, or practical steps when they improve the answer.
 - Use [Source N] citations for factual claims supported by supplied sources.
-- Never write source/publisher names such as "Hürriyet" or "Source 1" into the answer; use citations only.
-- Use Markdown bold for important people, organizations, places, dates, key facts, and quoted work/song/album titles. Keep emphasis selective.
 - Do not force research-report headings or a Next Step question.
 - Reply in the user's language.
 `
@@ -1827,8 +1738,7 @@ ${researchPrompt}
 GROQ OUTPUT RULES:
 - Follow the complete research brief and formatting requirements.
 - Provide exactly 3 Key Findings, each with exactly 2 complete sentences.
-- Cite factual claims immediately before sentence-ending punctuation using [Source N]; do not write source/publisher names such as "Hürriyet" in prose or parentheses.
-- Use Markdown bold for important people, organizations, places, dates, key facts, and quoted work/song/album titles. Keep emphasis selective.
+- Cite factual claims immediately before sentence-ending punctuation using [Source N].
 - Include an Executive Summary, Key Findings, Analysis, Bottom Line, and one concise Next Step question.
 - Do not invent facts or citations; reply in the user's language.
 `
@@ -1941,10 +1851,6 @@ if (!groqText.trim()) {
       'X-SheiLa-Provider',
       usedModel === 'gemini-4-hydrogen' ? 'gemini' : 'groq',
     )
-
-    if (usedModel === 'groq/openai/gpt-oss-120b') {
-      answerText = formatGroqAnswer(answerText, sources, message)
-    }
 
     // Keep entity links consistent whichever model generated the answer.
     answerText = linkAuraMusicMentions(answerText, message)
