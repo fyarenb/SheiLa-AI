@@ -792,6 +792,12 @@ function isMusicGroupResearchRequest(message: string): boolean {
   return refersToAura && musicTerms.some((term) => normalized.includes(term))
 }
 
+function isManifestIdentityRequest(message: string): boolean {
+  const normalized = normalizeSearchText(message)
+  return /\bmanifest\b/.test(normalized) &&
+    /\b(kimdir|nedir|hakkinda|grup|grubu|who|what|about|band)\b/.test(normalized)
+}
+
 function isOrganizationResearchRequest(message: string): boolean {
   if (isMusicGroupResearchRequest(message)) return false
 
@@ -1506,6 +1512,7 @@ function formatGroqAnswer(
     for (const { source, aliases } of sourceAliases) {
       for (const alias of aliases) {
         if (normalizeLabel(alias).length < 4) continue
+        if (isManifestIdentityRequest(message) && normalizeLabel(alias) === 'manifest') continue
         const pattern = new RegExp(
           '(?<![\\p{L}\\p{N}])' + escapeRegex(alias.trim()) + '(?![\\p{L}\\p{N}])',
           'giu',
@@ -1536,6 +1543,12 @@ function formatGroqAnswer(
     .replace(/\b(20\d{2})\b/g, '**$1**')
     .replace(/\b(\d+(?:[.,]\d+)?\s?(?:%|kişi|üye|milyon|bin|million|thousand))\b/gi, '**$1**')
 
+  if (isManifestIdentityRequest(message)) {
+    formatted = formatted
+      .replace(/(?<![\\p{L}*])(?:Esin Bahat|Hilal Yelekçi|Lidya Pınar|Mina Solak|Sueda Uluca|Zeynep Sude Oktay)(?![\\p{L}*])/giu, (match) => '**' + match + '**')
+      .replace(/(?<![\\p{L}*])(?:Big5 Türkiye|Hypers New Media|Hypers Music)(?![\\p{L}*])/giu, (match) => '**' + match + '**')
+  }
+
   if (isMusicGroupResearchRequest(message)) {
     // Bold the complete Turkish finding labels, including their colons.
     formatted = formatted.replace(
@@ -1557,6 +1570,19 @@ function formatGroqAnswer(
   }
 
   return formatted
+}
+
+function linkManifestOfficialWebsite(answer: string, message: string): string {
+  if (!isManifestIdentityRequest(message)) return answer
+  const url = 'https://manifestgirlband.com/tr/'
+  const officialLink = '[**Manifest**](' + url + ')'
+  let output = answer.replace(/\\*\\*Manifest\\*\\*/gi, officialLink)
+  const protectedPattern = /(\\x60{3}[\\s\\S]*?\\x60{3}|\\[[^\\]]+\\]\\([^)]+\\)|https?:\\/\\/[^\\s)]+)/g
+  output = output.split(protectedPattern).map((part) => {
+    if (part.startsWith('\\x60\\x60\\x60') || /^\\[[^\\]]+\\]\\([^)]+\\)$/.test(part) || /^https?:\\/\\//i.test(part)) return part
+    return part.replace(/(?<![\\p{L}\\p{N}*\\[])Manifest(?![\\p{L}\\p{N}*\\]])/giu, officialLink)
+  }).join('')
+  return output
 }
 
 function normalizeGreetingText(message: string): string {
@@ -1943,44 +1969,33 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
       
       try {
   
- const groqPrompt = isSimple
-   ? `
-${researchPrompt}
-
-GROQ OUTPUT RULES:
-- Answer directly in 2–4 concise sentences.
-- Use [Source N] citations for factual claims supported by supplied sources; citations must be the only source attribution in the text.
-- Never write publisher or source names such as Hürriyet, Source 1, or Source 2 in prose or parentheses.
-- Use Markdown bold for important names, people, organizations, key facts, dates, and titles in quotation marks.
-- Do not use research-report headings or a Next Step question.
-- Reply in the user's language.
-`
-   : isMedium
-     ? `
-${researchPrompt}
-
-GROQ OUTPUT RULES:
-- Give a moderately detailed answer, normally 2–4 short paragraphs or concise bullets.
-- Include examples, distinctions, or practical steps when they improve the answer.
-- Use [Source N] citations for factual claims supported by supplied sources; citations must be the only source attribution in the text.
-- Never write publisher or source names such as Hürriyet, Source 1, or Source 2 in prose or parentheses.
-- Use Markdown bold for important names, people, organizations, key facts, dates, and titles in quotation marks.
-- Do not force research-report headings or a Next Step question.
-- Reply in the user's language.
-`
-     : `
-${researchPrompt}
-
-GROQ OUTPUT RULES:
-- Follow the complete research brief and formatting requirements.
-- Provide exactly 3 Key Findings, each with exactly 2 complete sentences.
-- Cite factual claims immediately before sentence-ending punctuation using [Source N]; citations must be the only source attribution in the text.
-- Never write publisher or source names such as Hürriyet, Source 1, or Source 2 in prose or parentheses.
-- Use Markdown bold for important names, people, organizations, key facts, dates, and titles in quotation marks.
-- Include the equivalent of Executive Summary, Key Findings, Analysis, Bottom Line, and one concise Next Step question, translated into the user's language. For Turkish requests, use exactly: Özet, Önemli Bulgular, Analiz, Sonuç, Sonraki Adım. Never leave English section headings in a Turkish answer.
-- Remove redundant parenthetical restatements such as “stylized AURA”; do not pad the answer with wording that adds no useful information.
-- Do not invent facts or citations; reply entirely in the user's language.
-`
+  const isGroqGreeting = isGreetingMessage(message)
+  const groqPrompt = isGroqGreeting
+    ? [
+        'USER MESSAGE:',
+        message,
+        '',
+        'TASK:',
+        'Reply briefly and naturally in the user language. Do not add research sections or citations.',
+      ].join('\n')
+    : [
+        'USER QUESTION:',
+        message,
+        '',
+        'AVAILABLE WEB SOURCES:',
+        searchContext,
+        '',
+        'TASK:',
+        'Answer as an evidence-based research brief. A short factual question such as Manifest kimdir is still a research question and must receive all five sections.',
+        'Use all five sections in this exact order, translated into the user language: Executive Summary, Key Findings, Analysis, Bottom Line, Next Step.',
+        'For Turkish, use exactly: Özet, Önemli Bulgular, Analiz, Sonuç, Sonraki Adım.',
+        'Under Key Findings, provide up to three distinct numbered findings supported by the sources. Never invent findings to reach three.',
+        'Bold important names, member names, organizations, dates, years, titles, and key facts.',
+        'Link Manifest to its official Turkish website: https://manifestgirlband.com/tr/.',
+        'Cite factual claims with matching [Source N] markers. Do not write publisher names or labels such as Source 1 or Source 2 in prose. Verified sources are appended separately by the application.',
+        'Include useful content under every section. Do not omit sections because the question is short. State evidence limitations in the relevant section.',
+        'Keep the response relevant, concise, and free of generic filler.',
+      ].join('\n')
 
  console.log(
     `SheiLa Groq prompt chars: ${groqPrompt.length}`,
@@ -1993,18 +2008,16 @@ GROQ OUTPUT RULES:
       role: 'system',
       content: `${languageInstruction}\n\n${locationInstruction}\n\nOUTPUT LANGUAGE LOCK: ${isTurkishGroqRequest(message)
         ? 'The original user request is in Turkish. Write every sentence, explanation, bullet, heading, and follow-up question in fluent Turkish. Translate information from English sources into Turkish. Use exactly these research headings when needed: Özet, Önemli Bulgular, Analiz, Sonuç, Sonraki Adım. Keep only proper names, official names, and original work titles in their original language.'
-        : 'Determine the response language from the original user message only. Ignore the language of web results and source titles. Write all narrative text, headings, bullets, and follow-up questions in that same language. Keep proper names and official titles in their original form.'}\n\n${isSimple
-        ? "You are SheiLa AI. Answer clearly and concisely in the user's language. Use supplied sources and citations when relevant."
-        : isMedium
-          ? "You are SheiLa AI. Give practical, moderately detailed answers in the user's language. Cite source-based factual claims."
-          : "You are SheiLa AI, a professional research analyst. Use only the supplied web sources. Do not invent facts, dates, statistics, URLs, or citations. Evaluate source reliability, synthesize evidence, distinguish facts from interpretation, and state uncertainty. For substantial research, provide an executive summary, exactly three evidence-supported findings with citations, concise analysis, a bottom line, and one relevant next-step question. Reply in the user's language."}`,
+        : 'Determine the response language from the original user message only. Ignore the language of web results and source titles. Write all narrative text, headings, bullets, and follow-up questions in that same language. Keep proper names and official titles in their original form.'}\n\n${isGreetingMessage(message)
+        ? "You are SheiLa AI. Reply to greetings briefly and naturally in the user's language. Do not add research sections."
+        : "You are SheiLa AI, a professional research analyst. For every non-greeting question, including short factual questions, provide all five sections: Executive Summary, Key Findings, Analysis, Bottom Line, and Next Step, translated into the user's language. Use only supplied sources for facts, cite them, bold important names and key facts, and never omit sections just because the question is short."},
     },
     {
       role: 'user',
       content: `${groqPrompt}\n\nFINAL LANGUAGE CHECK: The language of the original user message—not the language of the web results—controls the language of the entire answer. Keep the wording concise and remove redundant phrases that add no information.`,
     },
   ],
-  max_completion_tokens: isSimple ? 900 : isMedium ? 1400 : 2000,
+  max_completion_tokens: isGreetingMessage(message) ? 500 : 2600,
   reasoning_effort: 'low',
   stream: true,
 })
@@ -2121,12 +2134,10 @@ if (!groqText.trim()) {
 
     let answerText = response.text ?? ''
 
-    if (!isSimple && !isMedium) {
-      answerText = enforceResearchFormatting(
-        answerText,
-        isTurkishMessage(message),
-        usedModel === 'groq/openai/gpt-oss-120b',
-      )
+    if (usedModel === 'groq/openai/gpt-oss-120b' && !isGreetingMessage(message)) {
+      answerText = enforceResearchFormatting(answerText, isTurkishMessage(message), true)
+    } else if (usedModel === 'gemini-4-hydrogen' && !isSimple && !isMedium) {
+      answerText = enforceResearchFormatting(answerText, isTurkishMessage(message), false)
     }
 
     // Let the client apply Gemini-specific presentation without changing Groq answers.
@@ -2137,6 +2148,7 @@ if (!groqText.trim()) {
 
     if (usedModel === 'groq/openai/gpt-oss-120b') {
       answerText = formatGroqAnswer(answerText, sources, message)
+      answerText = linkManifestOfficialWebsite(answerText, message)
       // Preserve the existing Groq-only presentation behavior.
       answerText = linkAuraMusicMentions(answerText, message)
     } else if (usedModel === 'gemini-4-hydrogen') {
