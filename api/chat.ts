@@ -1348,6 +1348,20 @@ function ensureGeminiNextStepEmoji(answer: string, isTurkish: boolean): string {
     .join('\n')
 }
 
+function cleanGroqNextStepLinkMarkup(answer: string): string {
+  const headingPattern = /(^|\n)(\s{0,3}#{1,3}\s*(?:Sonraki Adım|Next Step)\b[^\n]*)([\s\S]*)/i
+
+  return answer.replace(headingPattern, (_whole, start: string, heading: string, body: string) => {
+    const cleanBody = body
+      // The Next Step question is rendered as plain button text, not Markdown.
+      .replace(/\[([^\]]+)\]\(https?:\/\/[^)\s]+(?:\s+"[^"]*")?\)/g, '$1')
+      // Also repair incomplete Markdown such as "AURA](https://...)".
+      .replace(/([^\s[\]()]+)\]\(https?:\/\/[^)\s]+(?:\s+"[^"]*")?\)/g, '$1')
+
+    return start + heading + cleanBody
+  })
+}
+
 function getSources(data: TavilyResponse) {
   const seenDomains = new Set<string>()
 
@@ -1537,16 +1551,45 @@ function formatGroqAnswer(
     .replace(/\b(\d+(?:[.,]\d+)?\s?(?:%|kişi|üye|milyon|bin|million|thousand))\b/gi, '**$1**')
 
   if (isMusicGroupResearchRequest(message)) {
-    // Bold the complete Turkish finding labels, including their colons.
+    const titleCaseTurkish = (value: string) =>
+      value
+        .replace(/\*\*/g, '')
+        .trim()
+        .split(/\s+/)
+        .map((word, index) => {
+          const lower = word.toLocaleLowerCase('tr-TR')
+          if (index > 0 && ['ve', 'ile', 'veya', 'ya', 'da', 'de'].includes(lower)) {
+            return lower
+          }
+
+          return word
+            .split('-')
+            .map((part) => {
+              if (/^[A-ZÇĞİÖŞÜ0-9&.]+$/.test(part)) return part
+              if (/[A-ZÇĞİÖŞÜ].*[A-ZÇĞİÖŞÜ]/.test(part.slice(1))) return part
+              return part.charAt(0).toLocaleUpperCase('tr-TR') +
+                part.slice(1).toLocaleLowerCase('tr-TR')
+            })
+            .join('-')
+        })
+        .join(' ')
+
+    // Standardize all three numbered music findings:
+    // title case, black bold, and a colon (never a dash) before the explanation.
     formatted = formatted.replace(
-      /^(\s{0,3}\d+\.\s*(?:[\p{Extended_Pictographic}\uFE0F\u200D]+\s*)*)(Üyeler|Müzikal\s+Çıkış|Algı\s+ve\s+Performans)\s*:/gimu,
-      (_whole, prefix: string, label: string) => {
-        const canonical = label.toLocaleLowerCase('tr-TR') === 'müzikal çıkış'
-          ? 'Müzikal Çıkış'
-          : label.toLocaleLowerCase('tr-TR') === 'algı ve performans'
-            ? 'Algı ve Performans'
-            : 'Üyeler'
-        return prefix + '**' + canonical + ':**'
+      /^(\s{0,3})([1-3])\.\s*(.*)$/gmu,
+      (whole, indentation: string, number: string, rest: string) => {
+        const emojiPrefix = rest.match(/^(?:[\p{Extended_Pictographic}\uFE0F\u200D]+\s*)+/u)?.[0] ?? ''
+        const content = rest.slice(emojiPrefix.length).trim()
+        const separator = content.match(/^(.+?)\s*(?:[–—-]\s+|:\s*)([\s\S]+)$/u)
+        if (!separator) return whole
+
+        const label = titleCaseTurkish(separator[1])
+        const description = separator[2].trim()
+        if (!label || !description) return whole
+
+        return indentation + number + '. ' + emojiPrefix +
+          '**' + label + ':** ' + description
       },
     )
 
@@ -2139,6 +2182,7 @@ if (!groqText.trim()) {
       answerText = formatGroqAnswer(answerText, sources, message)
       // Preserve the existing Groq-only presentation behavior.
       answerText = linkAuraMusicMentions(answerText, message)
+      answerText = cleanGroqNextStepLinkMarkup(answerText)
     } else if (usedModel === 'gemini-4-hydrogen') {
       // Gemini-only: link the Turkish AURA group's name and ensure its follow-up heading has an emoji.
       answerText = linkAuraMusicMentionsForGemini(answerText, message)
