@@ -1023,6 +1023,68 @@ ${result.content ?? 'No content available'}
     .join('\n-------------------------\n')
 }
 
+function enforceResearchFormatting(answer: string, isTurkish: boolean): string {
+  let output = answer
+
+  const labels = isTurkish
+    ? [
+        { pattern: /^(?:Executive Summary|Özet)$/i, heading: '## Özet 🌐' },
+        { pattern: /^(?:Key Findings|Önemli Bulgular)$/i, heading: '## Önemli Bulgular 🔎' },
+        { pattern: /^(?:Analysis|Analiz)$/i, heading: '## Analiz 🧪' },
+        { pattern: /^(?:Bottom Line|Sonuç)$/i, heading: '## Sonuç 🎯' },
+        { pattern: /^(?:Next Step|Sonraki Adım)$/i, heading: '## Sonraki Adım' },
+      ]
+    : [
+        { pattern: /^(?:Executive Summary|Özet)$/i, heading: '## Executive Summary 🌐' },
+        { pattern: /^(?:Key Findings|Önemli Bulgular)$/i, heading: '## Key Findings 🔎' },
+        { pattern: /^(?:Analysis|Analiz)$/i, heading: '## Analysis 🧪' },
+        { pattern: /^(?:Bottom Line|Sonuç)$/i, heading: '## Bottom Line 🎯' },
+        { pattern: /^(?:Next Step|Sonraki Adım)$/i, heading: '## Next Step' },
+      ]
+
+  output = output.replace(
+    /^(\s{0,3})(?:#{1,3}\s*)?(?:\*\*)?([^#\n*]+?)(?:\*\*)?\s*$/gim,
+    (line, indent: string, rawHeading: string) => {
+      const normalized = rawHeading.trim().replace(/[：:]$/, '').trim()
+      const match = labels.find((item) => item.pattern.test(normalized))
+      return match ? \`\${indent}\${match.heading}\` : line
+    },
+  )
+
+  const findingsHeading = isTurkish ? 'Önemli Bulgular' : 'Key Findings'
+  const analysisHeading = isTurkish ? 'Analiz' : 'Analysis'
+  const findingsIndex = output.search(new RegExp(\`^#{1,3}\\\\s*\${findingsHeading}\\\\b.*$\`, 'im'))
+
+  if (findingsIndex >= 0) {
+    const afterHeading = output.indexOf('\\n', findingsIndex)
+    const analysisIndex = output.search(new RegExp(\`^#{1,3}\\\\s*\${analysisHeading}\\\\b.*$\`, 'im'))
+    if (afterHeading >= 0 && analysisIndex > afterHeading) {
+      const before = output.slice(0, afterHeading + 1)
+      const findings = output.slice(afterHeading + 1, analysisIndex)
+      const after = output.slice(analysisIndex)
+      const findingEmojis = ['🧭', '📈', '🛡️']
+      let numberedFindings = 0
+
+      const formattedFindings = findings.replace(
+        /^(\\s{0,3})(?:#{1,3}\\s*)?([1-3])\\.\\s*(.*)$/gm,
+        (line, indent: string, number: string, rest: string) => {
+          const emoji = findingEmojis[Number(number) - 1]
+          if (!emoji) return line
+          numberedFindings += 1
+          const title = rest.trim()
+          return \`\${indent}\${number}. \${emoji}\${title ? \` \${title}\` : ''}\`
+        },
+      )
+
+      if (numberedFindings > 0) {
+        output = before + formattedFindings + after
+      }
+    }
+  }
+
+  return output
+}
+
 function getSources(data: TavilyResponse) {
   const seenDomains = new Set<string>()
 
@@ -1339,7 +1401,6 @@ Do not invent facts, citations, or unsupported conclusions. Do not create a Sour
         if (timeoutId) clearTimeout(timeoutId)
       }
 
-      res.write(streamedGeminiText)
       streamedByGemini = true
       response = { text: streamedGeminiText }
       console.log(`SheiLa Gemini: response completed within 45s (${Date.now() - geminiStart}ms)`)
@@ -1429,7 +1490,6 @@ GROQ OUTPUT RULES:
           if (!chunkText) continue
 
           groqText += chunkText
-          res.write(chunkText)
           streamedByGroq = true
         }
 
@@ -1493,13 +1553,16 @@ if (!groqText.trim()) {
 
             
 
-    const answerText = response.text ?? ''
-        
-         
+    let answerText = response.text ?? ''
 
-   if (!streamedByGemini && !streamedByGroq) {
-      res.write(answerText)
+    if (!isSimple && !isMedium) {
+      answerText = enforceResearchFormatting(
+        answerText,
+        isTurkishMessage(message),
+      )
     }
+
+    res.write(answerText)
 
     
 
