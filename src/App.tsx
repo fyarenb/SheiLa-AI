@@ -151,7 +151,6 @@ function renderSheilaContent(
 ) => void,
   isNextStepResponse = false,
   isGeminiResponse = false,
-  isGroqResponse = false,
 ) {
     const isTurkish = /[çğıöşüÇĞİÖŞÜ]/.test(content)
     const cleanContent = content
@@ -250,7 +249,7 @@ function renderSheilaContent(
   
   return (
     <>
-      <div className={`sheila-answer-text${isGeminiResponse ? ' gemini-answer' : ''}${isGroqResponse ? ' groq-answer' : ''}`}>
+      <div className={`sheila-answer-text${isGeminiResponse ? ' gemini-answer' : ''}`}>
         <ReactMarkdown
   components={{
     img: () => null,
@@ -322,7 +321,7 @@ function renderSheilaContent(
       onClick={() => onNextStep(nextStepQuestion, true)}
     >
             <span className="next-step-label">
-        {isGroqResponse ? '🧭 ' : ''}{isTurkish ? 'Sonraki Adım' : 'Next Step'}
+        {isTurkish ? 'Sonraki Adım' : 'Next Step'}
       </span>
       <span className="next-step-arrow">→</span>
       <span className="next-step-question">
@@ -332,7 +331,7 @@ function renderSheilaContent(
   </div>
 )}
       {sources.length > 0 && (
-        <div className={`sources-section${isGroqResponse ? ' groq-sources' : ''}`}>
+        <div className="sources-section">
         <div className="sources-title">
           {isTurkish ? 'Kaynaklar' : 'Sources'}
         </div>
@@ -343,7 +342,7 @@ function renderSheilaContent(
 
               return (
                 <a
-                  className={`source-card${isGroqResponse ? ' groq-source-card' : ''}`}
+                  className="source-card"
                   key={source.number}
                   href={source.url}
                   target="_blank"
@@ -769,7 +768,6 @@ function App() {
                     submitResearchQuestion,
                     item.isNextStepResponse,
                     item.provider === 'gemini',
-                    item.provider === 'groq',
                      )
                     : item.content}
                 </div>
