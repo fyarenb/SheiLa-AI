@@ -38,7 +38,7 @@ CORE AREAS:
 ==================================================
 MUSIC GROUP AND ARTIST RESEARCH
 
-When a request refers to a music group, band, singer, songs, albums, members, or concerts, treat the subject as a musical act rather than a corporate group. For the Turkish query "Aura Grubu", prioritize the Turkish music group named AURA and search specifically for its music, members, releases, and official channels. Do not return unrelated companies or holdings with the same name. If multiple Turkish music acts share the name, distinguish them by their lineup, era, music, and official sources instead of combining their facts.
+When a request refers to a music group, band, singer, songs, albums, members, or concerts, treat the subject as a musical act rather than a corporate group. For the Turkish query "Aura Grubu", prioritize the contemporary Turkish girl group AURA associated with Seventh Door Entertainment. Verify its identity against sources mentioning Seventh Door Entertainment, the group's official channels, its members, or its releases. Do not return unrelated companies, holdings, or older music acts with the same name unless the user specifies them. If sources describe different AURA acts, keep their facts separate.
 
 ==================================================
 NAMED ORGANIZATION AND COMPANY RESEARCH
@@ -911,12 +911,24 @@ function canonicalizeResultUrl(value: string): string {
 
 function mergeSearchResults(
   responses: Array<{ plan: TavilySearchPlanItem; data: TavilyResponse }>,
+  isAuraMusicResearch = false,
 ): TavilyResponse {
   const byUrl = new Map<string, TavilyResult>()
 
   for (const { plan, data } of responses) {
     for (const result of data.results ?? []) {
       if (!result.url?.trim()) continue
+
+      if (isAuraMusicResearch) {
+        const identityText = normalizeSearchText(
+          `${result.title ?? ''} ${result.content ?? ''} ${result.url}`,
+        )
+        const identifiesTargetGroup =
+          /seventh door entertainment|aura4world|asli goz tasi|asli goztasi|suzy roumenov|meri aslan|esra mutlu|elemental/.test(identityText) ||
+          (/\\baura\\b/.test(identityText) && /\\byuh\\b/.test(identityText))
+
+        if (!identifiesTargetGroup) continue
+      }
       const key = canonicalizeResultUrl(result.url)
       const existing = byUrl.get(key)
 
@@ -1057,7 +1069,7 @@ async function searchWeb(query: string): Promise<TavilyResponse> {
     `SheiLa Tavily: ${successful.length}/${plan.length} search angles succeeded; ${successful.reduce((sum, item) => sum + (item.data.results?.length ?? 0), 0)} raw results`,
   )
 
-  return mergeSearchResults(successful)
+  return mergeSearchResults(successful, isMusicGroupResearchRequest(query))
 }
 
 function formatSearchResults(data: TavilyResponse): string {
