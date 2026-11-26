@@ -776,11 +776,20 @@ function normalizeSearchText(value: string): string {
 
 function isMusicGroupResearchRequest(message: string): boolean {
   const normalized = normalizeSearchText(message)
-  const refersToAura = /\\baura\\b/.test(normalized)
-  const musicContext =
-    /\\b(?:grup\\w*|grub\\w*|muzik\\w*|sarki\\w*|album\\w*|konser\\w*|uye\\w*|sanatci\\w*|kiz grubu)\\b/.test(normalized)
+  const refersToAura = normalized.includes('aura')
+  const musicTerms = [
+    'grup',
+    'grub',
+    'muzik',
+    'sarki',
+    'album',
+    'konser',
+    'uye',
+    'sanatci',
+    'kiz grubu',
+  ]
 
-  return refersToAura && musicContext
+  return refersToAura && musicTerms.some((term) => normalized.includes(term))
 }
 
 function isOrganizationResearchRequest(message: string): boolean {
@@ -923,9 +932,18 @@ function mergeSearchResults(
         const identityText = normalizeSearchText(
           `${result.title ?? ''} ${result.content ?? ''} ${result.url}`,
         )
+        const targetIdentifiers = [
+          'seventh door entertainment',
+          'aura4world',
+          'asli goztasi',
+          'suzy roumenov',
+          'meri aslan',
+          'esra mutlu',
+          'elemental',
+        ]
         const identifiesTargetGroup =
-          /seventh door entertainment|aura4world|asli goz tasi|asli goztasi|suzy roumenov|meri aslan|esra mutlu|elemental/.test(identityText) ||
-          (/\\baura\\b/.test(identityText) && /\\byuh\\b/.test(identityText))
+          targetIdentifiers.some((identifier) => identityText.includes(identifier)) ||
+          (identityText.includes('aura') && identityText.includes('yuh'))
 
         if (!identifiesTargetGroup) continue
       }
