@@ -1718,6 +1718,11 @@ html, body {
   margin-bottom: 2em !important;
 }
 
+/* Gemini only: add one line of space after finding 1 and finding 2 paragraphs. */
+.gemini-answer h3:nth-of-type(-n + 2) + p {
+  margin-bottom: 1em !important;
+}
+
 
 /* Groq-only: add one line of space after the SheiLa AI attribution. */
 .groq-answer {
