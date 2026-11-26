@@ -1717,3 +1717,10 @@ html, body {
 .gemini-answer ol > li:nth-child(-n + 2) {
   margin-bottom: 2em !important;
 }
+
+
+/* Groq-only: emphasize important names and quoted titles in black. */
+.groq-answer strong {
+  color: #111111 !important;
+  font-weight: 850 !important;
+}
