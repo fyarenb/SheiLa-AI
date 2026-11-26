@@ -1846,6 +1846,12 @@ if (!groqText.trim()) {
       )
     }
 
+    // Let the client apply Gemini-specific presentation without changing Groq answers.
+    res.setHeader(
+      'X-SheiLa-Provider',
+      usedModel === 'gemini-4-hydrogen' ? 'gemini' : 'groq',
+    )
+
     // Keep entity links consistent whichever model generated the answer.
     answerText = linkAuraMusicMentions(answerText, message)
 
