@@ -1307,6 +1307,47 @@ function linkAuraMusicMentions(answer: string, message: string): string {
     .join('')
 }
 
+function linkAuraMusicMentionsForGemini(answer: string, message: string): string {
+  if (!isMusicGroupResearchRequest(message)) return answer
+
+  const officialArtistChannel = 'https://www.youtube.com/@aura4world'
+
+  // Link both "AURA" and "Aura Girls" while preserving the model's original casing.
+  return answer
+    .split(/(\x60{3}[\s\S]*?\x60{3}|https?:\/\/[^\s)]+)/g)
+    .map((part) => {
+      if (part.startsWith('\x60\x60\x60') || /^https?:\/\//i.test(part)) return part
+
+      return part.replace(
+        /(?<!\[)\bAURA(?:\s+GIRLS)?\b(?!\]\s*\()/gi,
+        (label) => '[' + label + '](' + officialArtistChannel + ')',
+      )
+    })
+    .join('')
+}
+
+function ensureGeminiNextStepEmoji(answer: string, isTurkish: boolean): string {
+  const expectedHeading = isTurkish ? 'Sonraki Adım' : 'Next Step'
+
+  return answer
+    .split('\n')
+    .map((line) => {
+      const indentation = line.match(/^\s{0,3}/)?.[0] ?? ''
+      const heading = line
+        .trim()
+        .replace(/^#{1,6}\s*/, '')
+        .replace(/^\*\*(.*?)\*\*$/, '$1')
+        .replace(/[：:]$/, '')
+        .replace(/\s*🧭\s*$/u, '')
+        .trim()
+
+      return heading.toLocaleLowerCase('tr-TR') === expectedHeading.toLocaleLowerCase('tr-TR')
+        ? indentation + '## ' + expectedHeading + ' 🧭'
+        : line
+    })
+    .join('\n')
+}
+
 function getSources(data: TavilyResponse) {
   const seenDomains = new Set<string>()
 
@@ -2082,10 +2123,13 @@ if (!groqText.trim()) {
 
     if (usedModel === 'groq/openai/gpt-oss-120b') {
       answerText = formatGroqAnswer(answerText, sources, message)
+      // Preserve the existing Groq-only presentation behavior.
+      answerText = linkAuraMusicMentions(answerText, message)
+    } else if (usedModel === 'gemini-4-hydrogen') {
+      // Gemini-only: link the Turkish AURA group's name and ensure its follow-up heading has an emoji.
+      answerText = linkAuraMusicMentionsForGemini(answerText, message)
+      answerText = ensureGeminiNextStepEmoji(answerText, isTurkishMessage(message))
     }
-
-    // Keep entity links consistent whichever model generated the answer.
-    answerText = linkAuraMusicMentions(answerText, message)
 
     res.write(answerText)
 
