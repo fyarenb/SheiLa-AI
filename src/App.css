@@ -302,7 +302,7 @@ html, body {
   border: 0;
   outline: 0;
   background: transparent;
-  color: var(--sheila-blue);
+  color: #343a40;
   font: inherit;
   font-size: 14px;
   font-weight: 600;
