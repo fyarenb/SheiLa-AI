@@ -788,15 +788,15 @@ function App() {
                 <div className="chat-message-content loading-content">
                   <LoadingPaw />
                   <span className="loading-text">
-                  {messages.some(
-                   (m) =>
-                 /[çğıöşüÇĞİÖŞÜ]/.test(m.content) ||
-                 /\b(bir|ve|için|nedir|nasıl|mı|mi|mu|mü|bu|şu|ile|merhaba|selam|napıyosun|napıyon|ne|neler|kim|kimdir|grubu|hakkında|hakkinda|nerede|hangi|neden|kaç|kac|ara|araştır|arastir|açıkla|acikla|bul)\b/i.test(
-                          m.content,
-                        ),
-                    )
-                      ? 'araştırılıyor...'
-                      : 'researching...'}
+                  {(() => {
+                    const latestUserMessage = [...messages]
+                      .reverse()
+                      .find((item) => item.role === 'user')?.content ?? ''
+                    const isTurkishQuestion =
+                      /[çğıöşüÇĞİÖŞÜ]/.test(latestUserMessage) ||
+                      /\b(bir|ve|için|nedir|nasıl|mı|mi|mu|mü|bu|şu|ile|merhaba|selam|napıyosun|napıyon|ne|neler|kim|kimdir|grup|grubu|hakkında|hakkinda|nerede|hangi|neden|kaç|kac|ara|araştır|arastir|açıkla|acikla|bul|incele|öner|oner)\b/i.test(latestUserMessage)
+                    return isTurkishQuestion ? 'araştırılıyor...' : 'researching...'
+                  })()}
                   </span> 
                  
                 </div>
