@@ -1554,7 +1554,11 @@ function formatGroqAnswer(
   )
 
   if (findingsStart >= 0 && analysisStart > findingsStart) {
-    const findingsText = outputLines.slice(findingsStart + 1, analysisStart).join('\n')
+    const findingsText = outputLines
+      .slice(findingsStart + 1, analysisStart)
+      .join('\n')
+      // Remove stray standalone bullet/dot lines that Groq can insert between findings.
+      .replace(/^\s*(?:[•·▪◦]|\.)\s*$/gmu, '')
     const unnumberedFindings = findingsText.replace(
       /(^|[ \t])(?:#{1,3}[ \t]*)?([1-3])\.[ \t]+((?:\p{Extended_Pictographic}\uFE0F?[ \t]*)?)([^\n–—:]{2,70}?)(?:[ \t]*[–—-][ \t]*|[ \t]*:[ \t]*|(?=\n|$))/gmu,
       (_whole, boundary: string, _number: string, emoji: string, rawTitle: string) =>
