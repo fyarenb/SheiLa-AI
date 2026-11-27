@@ -671,7 +671,7 @@ function App() {
             </div>
 
             <div className="brand-subtitle">
-              Research &amp; Opportunity Intelligence
+              Research &amp; Opportunity<br />Intelligence
             </div>
           </a>
 
@@ -851,7 +851,7 @@ function App() {
             </div>
 
             <div className="brand-subtitle">
-              Research &amp; Opportunity Intelligence
+              Research &amp; Opportunity<br />Intelligence
             </div>
           </div>
         </div>
